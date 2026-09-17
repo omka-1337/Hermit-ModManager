@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { confirmDanger, errorMessage, Mod } from "../../api";
 import { Button, ErrorText, Toggle } from "../ui";
+import LaunchReport, { issueText } from "./LaunchReport";
 import PackageIcon from "./PackageIcon";
 import { dependantsOf, dependencyLabel, thunderstoreIconURL, useProfile } from "./ProfileContext";
 
 export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
-  const { profile, installed, busy, uninstall, setEnabled } = useProfile();
+  const { profile, installed, busy, report, uninstall, setEnabled } = useProfile();
   const [error, setError] = useState("");
   const mods = profile.mods ?? [];
 
@@ -43,10 +44,12 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
   return (
     <div className="h-full overflow-y-auto px-6 py-3">
       <ErrorText>{error}</ErrorText>
+      {report && <LaunchReport report={report} />}
       <ul className="divide-y divide-zinc-800">
         {mods.map((m) => {
           const unmet = (m.unmetDependencies ?? []).map((d) => dependencyLabel(installed, d));
           const dependants = dependantsOf(installed, m.id).filter((d) => d.enabled);
+          const issue = report?.issues?.find((i) => i.modId === m.id);
           return (
             <li key={m.id} className="flex items-center gap-3 py-2.5">
               <Toggle
@@ -61,6 +64,7 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
                   <span className="truncate text-sm font-medium">
                     {m.name} <span className="font-normal text-zinc-500">by {m.author}</span>
                   </span>
+                  {issue && m.active && <span className="truncate text-xs text-red-400">{issueText(issue)}</span>}
                   {unmet.length > 0 ? (
                     <span className="truncate text-xs text-amber-400">
                       {m.enabled ? "Disabled: requires" : "Requires"} {unmet.join(", ")}

@@ -6,8 +6,10 @@ export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/s
 export type { Settings } from "../bindings/bepinexmodmanager/internal/settings";
 export { BrowseService, InfoService, InstallService, LaunchService } from "../bindings/bepinexmodmanager/internal/app";
 export type { LaunchInfo } from "../bindings/bepinexmodmanager/internal/app";
-export { Stage } from "../bindings/bepinexmodmanager/internal/modinstall";
-export type { Progress } from "../bindings/bepinexmodmanager/internal/modinstall";
+export { ConflictReason, Stage } from "../bindings/bepinexmodmanager/internal/modinstall";
+export type { Conflict, InstallPlan, Progress } from "../bindings/bepinexmodmanager/internal/modinstall";
+export { IssueKind } from "../bindings/bepinexmodmanager/internal/launch";
+export type { Issue, Report } from "../bindings/bepinexmodmanager/internal/launch";
 export { Ordering } from "../bindings/bepinexmodmanager/internal/thunderstore";
 export type {
   Community,

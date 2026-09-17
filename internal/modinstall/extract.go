@@ -23,22 +23,19 @@ const configRoute = "config"
 
 var metadataFiles = []string{"manifest.json", "icon.png", "readme.md", "changelog.md", "license", "license.md", "license.txt"}
 
-// Extract unpacks a package archive into profileDir and returns the installed
-// files as slash-separated paths relative to profileDir. Config files are
-// written only if absent and are not returned, so user edits survive
-// reinstalls and uninstalls.
+type entry struct {
+	file   *zip.File
+	dest   string
+	config bool
+}
+
+// planEntries maps archive entries to their destination in the profile.
 //
 // A BepInEx loader pack (an archive with BepInEx/core inside, optionally under
 // one wrapper folder such as "BepInExPack/") is unpacked as-is into the profile
 // root, since it also carries the doorstop files that belong next to the game
 // executable.
-func Extract(zipPath, profileDir, modID string) ([]string, error) {
-	zr, err := zip.OpenReader(zipPath)
-	if err != nil {
-		return nil, err
-	}
-	defer zr.Close()
-
+func planEntries(zr *zip.Reader, modID string) ([]entry, error) {
 	var files []*zip.File
 	for _, f := range zr.File {
 		if !f.FileInfo().IsDir() {
@@ -47,44 +44,87 @@ func Extract(zipPath, profileDir, modID string) ([]string, error) {
 	}
 	loaderRoot, isLoader := findLoaderRoot(files)
 
-	var installed []string
-	cleanup := func() {
-		_ = Remove(profileDir, installed)
-	}
+	var entries []entry
 	for _, f := range files {
 		name, err := cleanEntryName(f.Name)
 		if err != nil {
-			cleanup()
 			return nil, err
 		}
-		var dest string
-		var isConfig bool
+		e := entry{file: f}
 		if isLoader {
 			rel, ok := strings.CutPrefix(name, loaderRoot)
 			if !ok {
 				continue // manifest, icon, readme next to the wrapper folder
 			}
-			dest = rel
-			isConfig = strings.HasPrefix(strings.ToLower(rel), "bepinex/config/")
+			e.dest = rel
+			e.config = strings.HasPrefix(strings.ToLower(rel), "bepinex/config/")
 		} else {
-			dest, isConfig = modDestination(name, modID)
+			e.dest, e.config = modDestination(name, modID)
 		}
-		if dest == "" {
-			continue
+		if e.dest != "" {
+			entries = append(entries, e)
 		}
+	}
+	return entries, nil
+}
 
-		target := filepath.Join(profileDir, filepath.FromSlash(dest))
-		if isConfig {
+// PlanFiles returns the tracked files Extract would install, without writing anything.
+func PlanFiles(zipPath, modID string) ([]string, error) {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	entries, err := planEntries(&zr.Reader, modID)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, e := range entries {
+		if !e.config && !slices.Contains(files, e.dest) {
+			files = append(files, e.dest)
+		}
+	}
+	slices.Sort(files)
+	return files, nil
+}
+
+// IsLoader reports whether installed files belong to a BepInEx loader pack.
+// Only loader packs place files in the profile root (winhttp.dll and friends);
+// everything else lives under BepInEx/.
+func IsLoader(files []string) bool {
+	return slices.ContainsFunc(files, func(f string) bool { return !strings.Contains(f, "/") })
+}
+
+// Extract unpacks a package archive into profileDir and returns the installed
+// files as slash-separated paths relative to profileDir. Config files are
+// written only if absent and are not returned, so user edits survive
+// reinstalls and uninstalls.
+func Extract(zipPath, profileDir, modID string) ([]string, error) {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	entries, err := planEntries(&zr.Reader, modID)
+	if err != nil {
+		return nil, err
+	}
+
+	var installed []string
+	for _, e := range entries {
+		target := filepath.Join(profileDir, filepath.FromSlash(e.dest))
+		if e.config {
 			if _, err := os.Stat(target); err == nil {
 				continue
 			}
 		}
-		if err := writeEntry(f, target); err != nil {
-			cleanup()
-			return nil, fmt.Errorf("extract %s: %w", name, err)
+		if err := writeEntry(e.file, target); err != nil {
+			_ = Remove(profileDir, installed)
+			return nil, fmt.Errorf("extract %s: %w", e.file.Name, err)
 		}
-		if !isConfig && !slices.Contains(installed, dest) {
-			installed = append(installed, dest)
+		if !e.config && !slices.Contains(installed, e.dest) {
+			installed = append(installed, e.dest)
 		}
 	}
 	slices.Sort(installed)

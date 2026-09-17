@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"bepinexmodmanager/internal/library"
 	"bepinexmodmanager/internal/modinstall"
@@ -124,7 +125,10 @@ func TestWrapperRun(t *testing.T) {
 
 	// The "game" records what it sees: links in place and the DLL override.
 	report := filepath.Join(tmp, "report")
-	script := `test -L winhttp.dll && echo linked >> ` + report + `; echo "$WINEDLLOVERRIDES" >> ` + report + `; exit 3`
+	logFile := filepath.Join(profileDir, "BepInEx", "LogOutput.log")
+	os.MkdirAll(filepath.Dir(logFile), 0o755)
+	script := `test -L winhttp.dll && echo linked >> ` + report + `; echo "$WINEDLLOVERRIDES" >> ` + report +
+		`; printf '[Info   :   BepInEx] Loading [A 1.0]\n' > '` + logFile + `'; exit 3`
 	w := &Wrapper{Lib: lib, Installer: modinstall.NewInstaller(lib, nil)}
 	var notified string
 	w.Notify = func(s, b string) { notified = s + ": " + b }
@@ -145,10 +149,67 @@ func TestWrapperRun(t *testing.T) {
 	if s, _ := ReadSession(dataDir); s != nil {
 		t.Error("session not removed")
 	}
+	rep, err := ReadReport(dataDir, game.ActiveProfile)
+	if err != nil || rep == nil || !rep.BepInExStarted || !slices.Equal(rep.Loaded, []string{"A 1.0"}) {
+		t.Errorf("report: %+v %v", rep, err)
+	}
+
+	// A log left from an earlier session means BepInEx did not start this time.
+	old := time.Now().Add(-time.Hour)
+	os.Chtimes(logFile, old, old)
+	w.Run([]string{"--game", game.ID, "--", "true"})
+	if rep, _ := ReadReport(dataDir, game.ActiveProfile); rep == nil || rep.BepInExStarted {
+		t.Errorf("stale log: %+v", rep)
+	}
 
 	// Unknown game: the command still runs, without mods, and the user is told.
 	t.Setenv("SteamAppId", "999")
 	if code := w.Run([]string{"--", "true"}); code != 0 || notified == "" {
 		t.Errorf("unknown game: code %d notified %q", code, notified)
+	}
+}
+
+const sampleLog = "[Message:   BepInEx] BepInEx 5.4.23.5 - Lethal Company (9/17/2026 11:46:42 AM)\r\n" +
+	`[Info   :   BepInEx] Running under Unity v2022.3.9.8303977
+[Message:   BepInEx] Chainloader started
+[Info   :   BepInEx] 5 plugins to load
+[Info   :   BepInEx] Loading [MoreCompany 1.14.0]
+[Warning:   BepInEx] Skipping [Old Thing 1.0.0] because a newer version exists (Old Thing 1.2.0)
+[Error  :   BepInEx] Could not load [Yippee tbh mod 1.2.4] because it is incompatible with: com.other.mod
+[Error  :   BepInEx] Could not load [Needs Stuff 2.0.0] because it has missing dependencies: com.lib.core (v1.0.0 or newer)
+[Error  :   BepInEx] Skipping [Chained 1.0.0] because it has a dependency that was not loaded. See previous errors for details.
+[Error  :   BepInEx] Error loading [Crashy 0.1.0] : System.NullReferenceException: Object reference not set
+  at Crashy.Plugin.Awake ()
+[Info   :   MoreCompany] Loading [Not BepInEx 1.0]
+[Message:   BepInEx] Chainloader startup complete
+`
+
+func TestParseLog(t *testing.T) {
+	rep := ParseLog(strings.NewReader(sampleLog))
+	if rep.BepInExVersion != "5.4.23.5" || !slices.Equal(rep.Loaded, []string{"MoreCompany 1.14.0"}) {
+		t.Errorf("version/loaded: %q %v", rep.BepInExVersion, rep.Loaded)
+	}
+	want := []Issue{
+		{Kind: IssueNewerVersionExists, Plugin: "Old Thing 1.0.0", Detail: "Old Thing 1.2.0"},
+		{Kind: IssueIncompatible, Plugin: "Yippee tbh mod 1.2.4", Detail: "com.other.mod"},
+		{Kind: IssueMissingDependencies, Plugin: "Needs Stuff 2.0.0", Detail: "com.lib.core (v1.0.0 or newer)"},
+		{Kind: IssueDependencyNotLoaded, Plugin: "Chained 1.0.0"},
+		{Kind: IssueLoadError, Plugin: "Crashy 0.1.0", Detail: "System.NullReferenceException: Object reference not set"},
+	}
+	if !slices.Equal(rep.Issues, want) {
+		t.Errorf("issues:\n got  %+v\n want %+v", rep.Issues, want)
+	}
+}
+
+func TestMatchMod(t *testing.T) {
+	mods := []library.Mod{
+		{ID: "notnotnotswipez-MoreCompany", Name: "MoreCompany", Files: []string{"BepInEx/plugins/notnotnotswipez-MoreCompany/MoreCompany.dll"}},
+		{ID: "a-Suits", Name: "More_Suits", Files: []string{"BepInEx/plugins/a-Suits/moresuits/MoreSuits.dll"}},
+	}
+	cases := map[string]string{"MoreCompany 1.14.0": "notnotnotswipez-MoreCompany", "More Suits 1.5.2": "a-Suits", "Unknown 1.0": ""}
+	for plugin, want := range cases {
+		if got := matchMod(mods, plugin); got != want {
+			t.Errorf("%q: got %q want %q", plugin, got, want)
+		}
 	}
 }

@@ -1,0 +1,180 @@
+package launch
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"io"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+
+	"bepinexmodmanager/internal/library"
+)
+
+type IssueKind string
+
+const (
+	IssueIncompatible        IssueKind = "incompatible"
+	IssueMissingDependencies IssueKind = "missing_dependencies"
+	IssueDependencyNotLoaded IssueKind = "dependency_not_loaded"
+	IssueNewerVersionExists  IssueKind = "newer_version_exists"
+	IssueProcessFilter       IssueKind = "process_filter"
+	IssueLoadError           IssueKind = "load_error"
+)
+
+// Issue is a plugin BepInEx refused or failed to load.
+type Issue struct {
+	Kind IssueKind `json:"kind"`
+	// Plugin is how BepInEx names the plugin: "<name> <version>".
+	Plugin string `json:"plugin"`
+	// Detail is the rest of the message, e.g. the incompatible plugin GUIDs.
+	Detail string `json:"detail"`
+	// ModID is the installed mod the plugin most likely belongs to, if known.
+	ModID string `json:"modId"`
+}
+
+// Report summarises BepInEx's LogOutput.log of the last game session of a profile.
+type Report struct {
+	ProfileID  string    `json:"profileId"`
+	StartedAt  time.Time `json:"startedAt"`
+	FinishedAt time.Time `json:"finishedAt"`
+	// BepInExStarted is false when the log was not written during the session,
+	// i.e. BepInEx did not load at all.
+	BepInExStarted bool     `json:"bepinexStarted"`
+	BepInExVersion string   `json:"bepinexVersion"`
+	Loaded         []string `json:"loaded"`
+	Issues         []Issue  `json:"issues"`
+}
+
+var (
+	logLine = regexp.MustCompile(`^\[\w+\s*:\s*BepInEx\] (.*)$`)
+	version = regexp.MustCompile(`^BepInEx (\S+) - `)
+	// Messages of BepInEx 5 Chainloader.
+	logPatterns = []struct {
+		kind IssueKind
+		re   *regexp.Regexp
+	}{
+		{IssueNewerVersionExists, regexp.MustCompile(`^Skipping \[(.+)\] because a newer version exists \((.*)\)$`)},
+		{IssueProcessFilter, regexp.MustCompile(`^Skipping \[(.+)\] because of process filters \((.*)\)$`)},
+		{IssueIncompatible, regexp.MustCompile(`^Could not load \[(.+)\] because it is incompatible with: (.*)$`)},
+		{IssueMissingDependencies, regexp.MustCompile(`^Could not load \[(.+)\] because it has missing dependencies: (.*)$`)},
+		{IssueDependencyNotLoaded, regexp.MustCompile(`^Skipping \[(.+)\] because it has a dependency that was not loaded()`)},
+		{IssueLoadError, regexp.MustCompile(`^Error loading \[(.+)\] : (.*)$`)},
+	}
+	loadingLine = regexp.MustCompile(`^Loading \[(.+)\]$`)
+)
+
+// ParseLog extracts loaded plugins and load issues from a BepInEx log.
+func ParseLog(r io.Reader) Report {
+	rep := Report{Loaded: []string{}, Issues: []Issue{}}
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
+	for sc.Scan() {
+		m := logLine.FindStringSubmatch(strings.TrimRight(sc.Text(), "\r"))
+		if m == nil {
+			continue
+		}
+		msg := m[1]
+		if v := version.FindStringSubmatch(msg); v != nil && rep.BepInExVersion == "" {
+			rep.BepInExVersion = v[1]
+			continue
+		}
+		if l := loadingLine.FindStringSubmatch(msg); l != nil {
+			rep.Loaded = append(rep.Loaded, l[1])
+			continue
+		}
+		for _, p := range logPatterns {
+			if s := p.re.FindStringSubmatch(msg); s != nil {
+				rep.Issues = append(rep.Issues, Issue{Kind: p.kind, Plugin: s[1], Detail: s[2]})
+				break
+			}
+		}
+	}
+	return rep
+}
+
+// BuildReport reads the profile's BepInEx log after a session.
+func BuildReport(profileDir string, session Session, mods []library.Mod) Report {
+	logPath := filepath.Join(profileDir, "BepInEx", "LogOutput.log")
+	rep := Report{Loaded: []string{}, Issues: []Issue{}}
+	if fi, err := os.Stat(logPath); err == nil && !fi.ModTime().Before(session.StartedAt) {
+		if f, err := os.Open(logPath); err == nil {
+			rep = ParseLog(f)
+			f.Close()
+			rep.BepInExStarted = true
+		}
+	}
+	rep.ProfileID = session.ProfileID
+	rep.StartedAt = session.StartedAt
+	rep.FinishedAt = time.Now()
+	for i := range rep.Issues {
+		rep.Issues[i].ModID = matchMod(mods, rep.Issues[i].Plugin)
+	}
+	return rep
+}
+
+var nonAlnum = regexp.MustCompile(`[^a-z0-9]`)
+
+func normalize(s string) string { return nonAlnum.ReplaceAllString(strings.ToLower(s), "") }
+
+// matchMod guesses which mod a plugin belongs to by comparing the plugin name
+// with mod names and DLL file names. BepInEx logs carry no file paths, so this
+// is best effort.
+func matchMod(mods []library.Mod, plugin string) string {
+	name := plugin
+	if i := strings.LastIndexByte(plugin, ' '); i > 0 {
+		name = plugin[:i]
+	}
+	want := normalize(name)
+	if want == "" {
+		return ""
+	}
+	for _, m := range mods {
+		if normalize(m.Name) == want {
+			return m.ID
+		}
+		for _, f := range m.Files {
+			if strings.EqualFold(path.Ext(f), ".dll") && normalize(strings.TrimSuffix(path.Base(f), path.Ext(f))) == want {
+				return m.ID
+			}
+		}
+	}
+	return ""
+}
+
+func reportPath(gameDataDir, profileID string) string {
+	return filepath.Join(gameDataDir, "reports", profileID+".json")
+}
+
+func SaveReport(gameDataDir string, rep Report) error {
+	data, err := json.MarshalIndent(rep, "", "  ")
+	if err != nil {
+		return err
+	}
+	p := reportPath(gameDataDir, rep.ProfileID)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(p, data, 0o644)
+}
+
+// ReadReport returns the last report of a profile, or nil if there is none.
+func ReadReport(gameDataDir, profileID string) (*Report, error) {
+	data, err := os.ReadFile(reportPath(gameDataDir, profileID))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var rep Report
+	if err := json.Unmarshal(data, &rep); err != nil {
+		return nil, err
+	}
+	return &rep, nil
+}

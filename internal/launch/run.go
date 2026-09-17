@@ -138,7 +138,11 @@ func (w *Wrapper) setup(gameID string, command []string, logOut *io.Writer, env 
 		*env = withDLLOverride(*env, "winhttp", "n,b")
 	}
 	cleanup := func() error {
-		return errors.Join(Unlink(game.Path, links, w.Lib.Root()), os.Remove(sessionPath(dataDir)))
+		var reportErr error
+		if len(links) > 0 {
+			reportErr = SaveReport(dataDir, BuildReport(profileDir, session, profile.Mods))
+		}
+		return errors.Join(reportErr, Unlink(game.Path, links, w.Lib.Root()), os.Remove(sessionPath(dataDir)))
 	}
 	return &session, cleanup, nil
 }

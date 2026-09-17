@@ -63,12 +63,83 @@ type plannedPackage struct {
 	ref      thunderstore.PackageRef
 	archive  thunderstore.Archive
 	manifest thunderstore.Manifest
+	files    []string
+}
+
+type Action string
+
+const (
+	ActionInstall   Action = "install"
+	ActionUpdate    Action = "update"
+	ActionReinstall Action = "reinstall"
+)
+
+type PlannedPackage struct {
+	// Package is "<author>-<name>-<version>".
+	Package string `json:"package"`
+	Action  Action `json:"action"`
+}
+
+type ConflictReason string
+
+const (
+	// ConflictFiles means both packages install the same files.
+	ConflictFiles ConflictReason = "files"
+	// ConflictLoader means both packages are BepInEx loader packs; only one can be installed.
+	ConflictLoader ConflictReason = "loader"
+)
+
+type Conflict struct {
+	// Package is the planned package, "<author>-<name>-<version>".
+	Package string `json:"package"`
+	// ModID is the conflicting mod: installed, or another planned package.
+	ModID     string         `json:"modId"`
+	ModName   string         `json:"modName"`
+	Installed bool           `json:"installed"`
+	Reason    ConflictReason `json:"reason"`
+	// Blocking conflicts cannot be solved by replacing: the other side is
+	// itself part of, or required by, the packages being installed.
+	Blocking bool `json:"blocking"`
+	// Files lists some of the shared files.
+	Files []string `json:"files"`
+}
+
+type InstallPlan struct {
+	Packages  []PlannedPackage `json:"packages"`
+	Conflicts []Conflict       `json:"conflicts"`
+}
+
+var ErrConflicts = errors.New("conflicts with installed mods")
+
+// PlanInstall resolves what installing a package would do, downloading archives
+// as needed, without changing the profile.
+func (in *Installer) PlanInstall(ctx context.Context, gameID, profileID string, ref thunderstore.PackageRef, onProgress func(Progress)) (InstallPlan, error) {
+	if err := ref.Validate(); err != nil {
+		return InstallPlan{}, err
+	}
+	lock := in.profileLock(gameID, profileID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	profile, err := in.lib.GetProfile(gameID, profileID)
+	if err != nil {
+		return InstallPlan{}, err
+	}
+	plan, err := in.resolve(ctx, profile, ref, in.progressFunc(gameID, profileID, ref, onProgress))
+	if err != nil {
+		return InstallPlan{}, err
+	}
+	return describePlan(profile, plan), nil
 }
 
 // Install installs a package version together with its dependencies.
 // Dependency versions are minimums: an installed dependency is kept if it is
 // the same or newer, otherwise the required version is installed.
-func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref thunderstore.PackageRef, onProgress func(Progress)) (library.Profile, error) {
+//
+// If planned packages conflict with installed mods, Install fails with
+// ErrConflicts unless replaceConflicts is set, in which case the conflicting
+// mods are uninstalled first. Conflicts between planned packages always fail.
+func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref thunderstore.PackageRef, replaceConflicts bool, onProgress func(Progress)) (library.Profile, error) {
 	if err := ref.Validate(); err != nil {
 		return library.Profile{}, err
 	}
@@ -84,18 +155,69 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 	if err != nil {
 		return library.Profile{}, err
 	}
+	report := in.progressFunc(gameID, profileID, ref, onProgress)
+	plan, err := in.resolve(ctx, profile, ref, report)
+	if err != nil {
+		return library.Profile{}, err
+	}
+
+	var replace []string
+	for _, c := range findConflicts(profile, plan) {
+		if c.Blocking {
+			return library.Profile{}, fmt.Errorf("%s and %s cannot be installed together (%s)", c.Package, c.ModID, c.Reason)
+		}
+		if !replaceConflicts {
+			return library.Profile{}, fmt.Errorf("%s: %w: %s", c.Package, ErrConflicts, c.ModName)
+		}
+		if !slices.Contains(replace, c.ModID) {
+			replace = append(replace, c.ModID)
+		}
+	}
+	if len(replace) > 0 {
+		_, err := in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
+			var errs []error
+			for _, id := range replace {
+				if i := slices.IndexFunc(p.Mods, func(m library.Mod) bool { return m.ID == id }); i >= 0 {
+					errs = append(errs, removeModFiles(profileDir, p.Mods[i], p.Mods))
+					p.Mods = slices.Delete(p.Mods, i, i+1)
+				}
+			}
+			return errors.Join(append(errs, Sync(profileDir, p))...), nil
+		})
+		if err != nil {
+			return library.Profile{}, err
+		}
+	}
+
+	for _, p := range plan {
+		if err := ctx.Err(); err != nil {
+			return library.Profile{}, err
+		}
+		report(p.ref, StageInstall, 0, 0)
+		if _, err := in.installOne(gameID, profileID, profileDir, p); err != nil {
+			return library.Profile{}, err
+		}
+	}
+	return in.lib.GetProfile(gameID, profileID)
+}
+
+func (in *Installer) progressFunc(gameID, profileID string, target thunderstore.PackageRef, onProgress func(Progress)) func(thunderstore.PackageRef, Stage, int64, int64) {
+	return func(pkg thunderstore.PackageRef, stage Stage, done, total int64) {
+		if onProgress != nil {
+			onProgress(Progress{GameID: gameID, ProfileID: profileID, Target: target.ID(), Package: pkg.String(), Stage: stage, Done: done, Total: total})
+		}
+	}
+}
+
+// resolve downloads the package and its dependency tree and returns the
+// packages to install, dependencies first. Dependencies already installed at a
+// sufficient version are left out; the requested package is always included.
+func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref thunderstore.PackageRef, report func(thunderstore.PackageRef, Stage, int64, int64)) ([]plannedPackage, error) {
 	installed := map[string]string{}
 	for _, m := range profile.Mods {
 		installed[m.ID] = m.Version
 	}
 
-	report := func(pkg thunderstore.PackageRef, stage Stage, done, total int64) {
-		if onProgress != nil {
-			onProgress(Progress{GameID: gameID, ProfileID: profileID, Target: ref.ID(), Package: pkg.String(), Stage: stage, Done: done, Total: total})
-		}
-	}
-
-	// Resolve the dependency tree depth-first so dependencies come before dependants.
 	var plan []plannedPackage
 	planned := map[string]int{}
 	var visit func(r thunderstore.PackageRef, root bool) error
@@ -119,6 +241,10 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 		if err != nil {
 			return fmt.Errorf("%s: %w", r, err)
 		}
+		files, err := PlanFiles(archive.Path, r.ID())
+		if err != nil {
+			return fmt.Errorf("%s: %w", r, err)
+		}
 		for _, dep := range manifest.Dependencies {
 			depRef, err := thunderstore.ParseDependency(dep)
 			if err != nil {
@@ -128,31 +254,101 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 				return err
 			}
 		}
-		plan = append(plan, plannedPackage{ref: r, archive: archive, manifest: manifest})
+		plan = append(plan, plannedPackage{ref: r, archive: archive, manifest: manifest, files: files})
 		planned[r.ID()] = len(plan) - 1
 		return nil
 	}
 	if err := visit(ref, true); err != nil {
-		return library.Profile{}, err
+		return nil, err
 	}
 
+	// Drop entries superseded by a newer version planned later.
+	var result []plannedPackage
 	for i, p := range plan {
-		if planned[p.ref.ID()] != i {
-			continue // superseded by a newer version planned later
-		}
-		if err := ctx.Err(); err != nil {
-			return library.Profile{}, err
-		}
-		if installed[p.ref.ID()] == p.ref.Version && i != len(plan)-1 {
-			continue
-		}
-		report(p.ref, StageInstall, 0, 0)
-		profile, err = in.installOne(gameID, profileID, profileDir, p)
-		if err != nil {
-			return library.Profile{}, err
+		if planned[p.ref.ID()] == i {
+			result = append(result, p)
 		}
 	}
-	return in.lib.GetProfile(gameID, profileID)
+	return result, nil
+}
+
+func describePlan(profile library.Profile, plan []plannedPackage) InstallPlan {
+	installed := map[string]string{}
+	for _, m := range profile.Mods {
+		installed[m.ID] = m.Version
+	}
+	result := InstallPlan{Packages: []PlannedPackage{}, Conflicts: findConflicts(profile, plan)}
+	for _, p := range plan {
+		action := ActionInstall
+		if v, ok := installed[p.ref.ID()]; ok {
+			action = ActionUpdate
+			if v == p.ref.Version {
+				action = ActionReinstall
+			}
+		}
+		result.Packages = append(result.Packages, PlannedPackage{Package: p.ref.String(), Action: action})
+	}
+	return result
+}
+
+// findConflicts checks planned packages against installed mods (other than
+// the ones they replace) and against each other.
+func findConflicts(profile library.Profile, plan []plannedPackage) []Conflict {
+	type owner struct {
+		id, name  string
+		installed bool
+		files     []string
+	}
+	replaced := map[string]bool{}
+	required := map[string]bool{}
+	for _, p := range plan {
+		replaced[p.ref.ID()] = true
+		for _, dep := range p.manifest.Dependencies {
+			if r, err := thunderstore.ParseDependency(dep); err == nil {
+				required[r.ID()] = true
+			}
+		}
+	}
+	var owners []owner
+	for _, m := range profile.Mods {
+		if !replaced[m.ID] {
+			owners = append(owners, owner{m.ID, m.Name, true, m.Files})
+		}
+	}
+
+	conflicts := []Conflict{}
+	for _, p := range plan {
+		loader := IsLoader(p.files)
+		for _, o := range owners {
+			var shared []string
+			for _, f := range p.files {
+				if slices.Contains(o.files, f) {
+					shared = append(shared, f)
+				}
+			}
+			c := Conflict{
+				Package:   p.ref.String(),
+				ModID:     o.id,
+				ModName:   o.name,
+				Installed: o.installed,
+				Reason:    ConflictFiles,
+				Blocking:  !o.installed || required[o.id],
+			}
+			switch {
+			case loader && IsLoader(o.files):
+				c.Reason = ConflictLoader
+			case len(shared) == 0:
+				continue
+			}
+			c.Files = shared[:min(len(shared), 5)]
+			if c.Files == nil {
+				c.Files = []string{}
+			}
+			conflicts = append(conflicts, c)
+		}
+		owners = append(owners, owner{p.ref.ID(), p.ref.Name, false, p.files})
+	}
+	return conflicts
 }
 
 var ErrUnmetDependencies = errors.New("missing or disabled dependencies")
@@ -179,7 +375,7 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 		if i := slices.IndexFunc(prof.Mods, func(m library.Mod) bool { return m.ID == p.ref.ID() }); i >= 0 {
 			old := prof.Mods[i]
 			enabled = old.Enabled // an update keeps the user's choice
-			if err := removeModFiles(profileDir, old); err != nil {
+			if err := removeModFiles(profileDir, old, prof.Mods); err != nil {
 				return fmt.Errorf("remove old %s: %w", old.ID, err), nil
 			}
 			prof.Mods = slices.Delete(prof.Mods, i, i+1)
@@ -230,7 +426,7 @@ func (in *Installer) Uninstall(gameID, profileID, modID string) (library.Profile
 		if i < 0 {
 			return nil, fmt.Errorf("mod %q: %w", modID, library.ErrNotFound)
 		}
-		removeErr := removeModFiles(profileDir, p.Mods[i])
+		removeErr := removeModFiles(profileDir, p.Mods[i], p.Mods)
 		p.Mods = slices.Delete(p.Mods, i, i+1)
 		return errors.Join(removeErr, Sync(profileDir, p)), nil
 	})

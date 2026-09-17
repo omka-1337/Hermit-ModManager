@@ -107,10 +107,17 @@ func moveFiles(profileDir string, m library.Mod, activate bool) error {
 }
 
 // removeModFiles deletes a mod's files from wherever they currently are.
-func removeModFiles(profileDir string, m library.Mod) error {
-	files := make([]string, len(m.Files))
-	for i, f := range m.Files {
-		files[i] = filesLocation(m, f)
+// Files that another active mod also lists are kept, so profiles created
+// before conflict checks cannot lose files of a different mod.
+func removeModFiles(profileDir string, m library.Mod, all []library.Mod) error {
+	var files []string
+	for _, f := range m.Files {
+		shared := m.Active && slices.ContainsFunc(all, func(o library.Mod) bool {
+			return o.ID != m.ID && o.Active && slices.Contains(o.Files, f)
+		})
+		if !shared {
+			files = append(files, filesLocation(m, f))
+		}
 	}
 	return Remove(profileDir, files)
 }

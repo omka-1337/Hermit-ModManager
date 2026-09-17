@@ -109,3 +109,13 @@ func executablePath() string {
 	}
 	return exe
 }
+
+// GetLaunchReport returns what BepInEx loaded during the last session of a
+// profile, or nil if the profile was not launched with mods yet.
+func (s *LaunchService) GetLaunchReport(gameID, profileID string) (*launch.Report, error) {
+	dataDir, err := s.lib.GameDataDir(gameID)
+	if err != nil {
+		return nil, err
+	}
+	return launch.ReadReport(dataDir, profileID)
+}

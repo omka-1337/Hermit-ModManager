@@ -21,15 +21,25 @@ func NewInstallService(installer *modinstall.Installer) *InstallService {
 	return &InstallService{installer: installer}
 }
 
-// InstallPackage installs a Thunderstore package version with its dependencies
-// into a profile, emitting InstallProgressEvent along the way.
-func (s *InstallService) InstallPackage(ctx context.Context, gameID, profileID, namespace, name, version string) (library.Profile, error) {
+func emitProgress(p modinstall.Progress) {
+	if app := application.Get(); app != nil {
+		app.Event.Emit(InstallProgressEvent, p)
+	}
+}
+
+// PlanInstall downloads a package with its dependencies and reports what
+// installing it would change, including conflicts with installed mods.
+func (s *InstallService) PlanInstall(ctx context.Context, gameID, profileID, namespace, name, version string) (modinstall.InstallPlan, error) {
 	ref := thunderstore.PackageRef{Namespace: namespace, Name: name, Version: version}
-	return s.installer.Install(ctx, gameID, profileID, ref, func(p modinstall.Progress) {
-		if app := application.Get(); app != nil {
-			app.Event.Emit(InstallProgressEvent, p)
-		}
-	})
+	return s.installer.PlanInstall(ctx, gameID, profileID, ref, emitProgress)
+}
+
+// InstallPackage installs a Thunderstore package version with its dependencies
+// into a profile, emitting InstallProgressEvent along the way. Conflicting
+// installed mods are uninstalled only if replaceConflicts is set.
+func (s *InstallService) InstallPackage(ctx context.Context, gameID, profileID, namespace, name, version string, replaceConflicts bool) (library.Profile, error) {
+	ref := thunderstore.PackageRef{Namespace: namespace, Name: name, Version: version}
+	return s.installer.Install(ctx, gameID, profileID, ref, replaceConflicts, emitProgress)
 }
 
 func (s *InstallService) UninstallMod(gameID, profileID, modID string) (library.Profile, error) {
