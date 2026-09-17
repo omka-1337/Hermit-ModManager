@@ -3,21 +3,30 @@ package main
 import (
 	"embed"
 	"log"
+	"path/filepath"
 
+	"github.com/adrg/xdg"
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"bepinexmodmanager/internal/app"
+	"bepinexmodmanager/internal/library"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
+	lib, err := library.New(filepath.Join(xdg.DataHome, app.ID))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	wailsApp := application.New(application.Options{
 		Name:        app.Name,
 		Description: "Mod manager for BepInEx games",
 		Services: []application.Service{
 			application.NewService(app.NewInfoService()),
+			application.NewService(lib),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

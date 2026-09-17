@@ -3,7 +3,11 @@ package app
 
 import "runtime"
 
-const Name = "BepInEx Mod Manager"
+const (
+	Name = "BepInEx Mod Manager"
+	// ID is used for on-disk directories (e.g. ~/.local/share/<ID>).
+	ID = "bepinexmodmanager"
+)
 
 // Version is overridden at build time via -ldflags "-X bepinexmodmanager/internal/app.Version=...".
 var Version = "0.1.0-dev"
