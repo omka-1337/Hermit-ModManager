@@ -267,3 +267,19 @@ func TestDiscoverGamesFromSteam(t *testing.T) {
 		t.Error("expected AlreadyAdded after adding")
 	}
 }
+
+func TestProfileSchemaMigration(t *testing.T) {
+	lib := newTestLibrary(t)
+	g, _ := lib.AddGame("Game", fakeGame(t))
+	legacy := `{"schemaVersion": 1, "name": "Default", "mods": [
+		{"id": "a-On", "enabled": true}, {"id": "b-Off", "enabled": false}]}`
+	os.WriteFile(filepath.Join(lib.profileDir(g.ID, g.ActiveProfile), "profile.json"), []byte(legacy), 0o644)
+
+	p, err := lib.GetProfile(g.ID, g.ActiveProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.SchemaVersion != ProfileSchemaVersion || !p.Mods[0].Active || p.Mods[1].Active {
+		t.Fatalf("migrated: %+v", p)
+	}
+}

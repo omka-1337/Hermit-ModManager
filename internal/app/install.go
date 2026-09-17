@@ -35,3 +35,13 @@ func (s *InstallService) InstallPackage(ctx context.Context, gameID, profileID, 
 func (s *InstallService) UninstallMod(gameID, profileID, modID string) (library.Profile, error) {
 	return s.installer.Uninstall(gameID, profileID, modID)
 }
+
+// SetModEnabled enables or disables a mod; dependants follow automatically.
+func (s *InstallService) SetModEnabled(gameID, profileID, modID string, enabled bool) (library.Profile, error) {
+	return s.installer.SetEnabled(gameID, profileID, modID, enabled)
+}
+
+// OpenProfile returns a profile with mod states brought up to date.
+func (s *InstallService) OpenProfile(gameID, profileID string) (library.Profile, error) {
+	return s.installer.Refresh(gameID, profileID)
+}

@@ -40,7 +40,11 @@ type GameCandidate struct {
 	AlreadyAdded bool      `json:"alreadyAdded"`
 }
 
-const ProfileSchemaVersion = 1
+// ProfileSchemaVersion history:
+//
+//	1: initial
+//	2: Mod.Active added; older profiles have all mods active
+const ProfileSchemaVersion = 2
 
 // Profile is stored in profiles/<id>/profile.json and is meant to be shareable:
 // no absolute paths or machine-specific data.
@@ -53,12 +57,20 @@ type Profile struct {
 
 type Mod struct {
 	// ID is "<author>-<name>", the Thunderstore full name without version.
-	ID      string    `json:"id"`
-	Name    string    `json:"name"`
-	Author  string    `json:"author"`
-	Version string    `json:"version"`
-	Enabled bool      `json:"enabled"`
-	Source  ModSource `json:"source"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Author  string `json:"author"`
+	Version string `json:"version"`
+	// Enabled is the user's choice.
+	Enabled bool `json:"enabled"`
+	// Active means the mod's files are in place and loaded by BepInEx: it is
+	// enabled and all its dependencies are installed and active. Files of an
+	// inactive mod are kept under disabled/<mod-id>/ in the profile.
+	Active bool `json:"active"`
+	// UnmetDependencies lists dependencies that are not installed or not
+	// active; while non-empty the mod cannot be active.
+	UnmetDependencies []string  `json:"unmetDependencies"`
+	Source            ModSource `json:"source"`
 	// Dependencies are "<author>-<name>-<version>" strings from the package manifest.
 	Dependencies []string `json:"dependencies"`
 	// Files are slash-separated paths relative to the profile directory.

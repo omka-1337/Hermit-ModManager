@@ -412,6 +412,12 @@ func (l *Library) loadProfile(gameID, id string) (Profile, error) {
 	if p.Mods == nil {
 		p.Mods = []Mod{}
 	}
+	if p.SchemaVersion < 2 {
+		for i := range p.Mods {
+			p.Mods[i].Active = p.Mods[i].Enabled
+		}
+	}
+	p.SchemaVersion = ProfileSchemaVersion
 	return p, nil
 }
 

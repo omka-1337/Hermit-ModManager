@@ -2,6 +2,7 @@ package modinstall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -154,22 +155,40 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 	return in.lib.GetProfile(gameID, profileID)
 }
 
-func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedPackage) (library.Profile, error) {
-	current, err := in.lib.GetProfile(gameID, profileID)
+var ErrUnmetDependencies = errors.New("missing or disabled dependencies")
+
+// updateProfile applies fn and always saves the profile, so profile.json keeps
+// matching the files on disk even when a file operation fails midway. fn
+// returns validation errors (profile not saved) and file errors separately.
+func (in *Installer) updateProfile(gameID, profileID string, fn func(*library.Profile) (fileErr, validationErr error)) (library.Profile, error) {
+	var fileErr error
+	prof, err := in.lib.UpdateProfile(gameID, profileID, func(p *library.Profile) error {
+		var validationErr error
+		fileErr, validationErr = fn(p)
+		return validationErr
+	})
 	if err != nil {
 		return library.Profile{}, err
 	}
-	if i := slices.IndexFunc(current.Mods, func(m library.Mod) bool { return m.ID == p.ref.ID() }); i >= 0 {
-		if err := Remove(profileDir, current.Mods[i].Files); err != nil {
-			return library.Profile{}, fmt.Errorf("remove old %s: %w", current.Mods[i].ID, err)
-		}
-	}
+	return prof, fileErr
+}
 
-	files, extractErr := Extract(p.archive.Path, profileDir, p.ref.ID())
-	return in.lib.UpdateProfile(gameID, profileID, func(prof *library.Profile) error {
-		prof.Mods = slices.DeleteFunc(prof.Mods, func(m library.Mod) bool { return m.ID == p.ref.ID() })
-		if extractErr != nil {
-			return fmt.Errorf("install %s: %w", p.ref, extractErr)
+func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedPackage) (library.Profile, error) {
+	return in.updateProfile(gameID, profileID, func(prof *library.Profile) (error, error) {
+		enabled := true
+		if i := slices.IndexFunc(prof.Mods, func(m library.Mod) bool { return m.ID == p.ref.ID() }); i >= 0 {
+			old := prof.Mods[i]
+			enabled = old.Enabled // an update keeps the user's choice
+			if err := removeModFiles(profileDir, old); err != nil {
+				return fmt.Errorf("remove old %s: %w", old.ID, err), nil
+			}
+			prof.Mods = slices.Delete(prof.Mods, i, i+1)
+		}
+
+		files, err := Extract(p.archive.Path, profileDir, p.ref.ID())
+		if err != nil {
+			// The old version is already gone, so the profile is saved without it.
+			return errors.Join(fmt.Errorf("install %s: %w", p.ref, err), Sync(profileDir, prof)), nil
 		}
 		deps := p.manifest.Dependencies
 		if deps == nil {
@@ -180,7 +199,8 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			Name:    p.ref.Name,
 			Author:  p.ref.Namespace,
 			Version: p.ref.Version,
-			Enabled: true,
+			Enabled: enabled,
+			Active:  true, // Extract puts files in the active location; Sync fixes it up
 			Source: library.ModSource{
 				Type:   library.SourceThunderstore,
 				URL:    p.archive.URL,
@@ -190,12 +210,12 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			Files:        files,
 		})
 		slices.SortFunc(prof.Mods, func(a, b library.Mod) int { return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)) })
-		return nil
+		return Sync(profileDir, prof), nil
 	})
 }
 
 // Uninstall removes a mod's files and its entry from the profile. Dependencies
-// are left installed.
+// are left installed; dependants become inactive.
 func (in *Installer) Uninstall(gameID, profileID, modID string) (library.Profile, error) {
 	lock := in.profileLock(gameID, profileID)
 	lock.Lock()
@@ -205,20 +225,55 @@ func (in *Installer) Uninstall(gameID, profileID, modID string) (library.Profile
 	if err != nil {
 		return library.Profile{}, err
 	}
-	var files []string
-	profile, err := in.lib.UpdateProfile(gameID, profileID, func(p *library.Profile) error {
+	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
 		i := slices.IndexFunc(p.Mods, func(m library.Mod) bool { return m.ID == modID })
 		if i < 0 {
-			return fmt.Errorf("mod %q: %w", modID, library.ErrNotFound)
+			return nil, fmt.Errorf("mod %q: %w", modID, library.ErrNotFound)
 		}
-		files = p.Mods[i].Files
+		removeErr := removeModFiles(profileDir, p.Mods[i])
 		p.Mods = slices.Delete(p.Mods, i, i+1)
-		return nil
+		return errors.Join(removeErr, Sync(profileDir, p)), nil
 	})
+}
+
+// Refresh recomputes mod states, e.g. for profiles saved by older versions or
+// changed outside the manager.
+func (in *Installer) Refresh(gameID, profileID string) (library.Profile, error) {
+	lock := in.profileLock(gameID, profileID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	profileDir, err := in.lib.ProfileDir(gameID, profileID)
 	if err != nil {
 		return library.Profile{}, err
 	}
-	return profile, Remove(profileDir, files)
+	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
+		return Sync(profileDir, p), nil
+	})
+}
+
+// SetEnabled enables or disables a mod. Enabling fails with
+// ErrUnmetDependencies while a dependency is missing or disabled.
+func (in *Installer) SetEnabled(gameID, profileID, modID string, enabled bool) (library.Profile, error) {
+	lock := in.profileLock(gameID, profileID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	profileDir, err := in.lib.ProfileDir(gameID, profileID)
+	if err != nil {
+		return library.Profile{}, err
+	}
+	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
+		i := slices.IndexFunc(p.Mods, func(m library.Mod) bool { return m.ID == modID })
+		if i < 0 {
+			return nil, fmt.Errorf("mod %q: %w", modID, library.ErrNotFound)
+		}
+		if enabled && len(p.Mods[i].UnmetDependencies) > 0 {
+			return nil, fmt.Errorf("cannot enable %s: %w: %s", p.Mods[i].Name, ErrUnmetDependencies, strings.Join(p.Mods[i].UnmetDependencies, ", "))
+		}
+		p.Mods[i].Enabled = enabled
+		return Sync(profileDir, p), nil
+	})
 }
 
 // CompareVersions compares dotted numeric versions like "5.4.2100".

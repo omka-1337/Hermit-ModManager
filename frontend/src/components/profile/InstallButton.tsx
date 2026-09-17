@@ -28,7 +28,9 @@ export default function InstallButton({ namespace, name, latestVersion }: Props)
   const remove = () =>
     act(async () => {
       const dependants = dependantsOf(installed, id).map((m) => m.name);
-      const warning = dependants.length ? `\n\nThese installed mods depend on it: ${dependants.join(", ")}.` : "";
+      const warning = dependants.length
+        ? `\n\nThese mods depend on it and will be disabled: ${dependants.join(", ")}.`
+        : "";
       if (await confirmDanger("Uninstall mod", `Uninstall ${name}?${warning}`, "Uninstall")) {
         await uninstall(id);
       }
@@ -51,7 +53,7 @@ export default function InstallButton({ namespace, name, latestVersion }: Props)
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         {mod && mod.version === latestVersion ? (
-          <Button disabled>Installed</Button>
+          <Button disabled>{mod.active ? "Installed" : "Installed (disabled)"}</Button>
         ) : (
           <Button variant="primary" disabled={busy !== null} onClick={() => act(() => install(namespace, name, latestVersion))}>
             {busy === id ? "Installing…" : mod ? `Update to ${latestVersion}` : "Install"}

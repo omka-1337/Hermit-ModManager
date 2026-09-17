@@ -11,6 +11,7 @@ type ProfileState = {
   progress: Progress | null;
   install: (namespace: string, name: string, version: string) => Promise<void>;
   uninstall: (modId: string) => Promise<void>;
+  setEnabled: (modId: string, enabled: boolean) => Promise<void>;
 };
 
 const ProfileContext = createContext<ProfileState | null>(null);
@@ -65,6 +66,8 @@ export function ProfileProvider({ game, profile, onProfileChange, children }: Pr
       install: (namespace, name, version) =>
         run(`${namespace}-${name}`, () => InstallService.InstallPackage(game.id, profile.id, namespace, name, version)),
       uninstall: (modId) => run(modId, () => InstallService.UninstallMod(game.id, profile.id, modId)),
+      setEnabled: (modId, enabled) =>
+        run(modId, () => InstallService.SetModEnabled(game.id, profile.id, modId, enabled)),
     }),
     [game, profile, busy, progress, run],
   );
@@ -77,6 +80,13 @@ export function dependantsOf(installed: Map<string, Mod>, modId: string): Mod[] 
   return [...installed.values()].filter((m) =>
     (m.dependencies ?? []).some((d) => d.startsWith(`${modId}-`) && !d.slice(modId.length + 1).includes("-")),
   );
+}
+
+// dependencyLabel describes an unmet dependency string "<author>-<name>-<version>".
+export function dependencyLabel(installed: Map<string, Mod>, dep: string): string {
+  const id = dep.replace(/-\d+\.\d+\.\d+$/, "");
+  const name = id.slice(id.lastIndexOf("-") + 1);
+  return installed.has(id) ? `${name} (disabled)` : `${name} (not installed)`;
 }
 
 export function thunderstoreIconURL(mod: Mod): string {

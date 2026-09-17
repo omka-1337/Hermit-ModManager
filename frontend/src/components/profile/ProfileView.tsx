@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { errorMessage, Game, Library, Profile } from "../../api";
+import { errorMessage, Game, InstallService, Profile } from "../../api";
 import { Button, ErrorText } from "../ui";
 import BrowseTab from "./BrowseTab";
 import InstalledTab from "./InstalledTab";
@@ -19,7 +19,7 @@ export default function ProfileView({ game, profileId, onBack }: Props) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Library.GetProfile(game.id, profileId)
+    InstallService.OpenProfile(game.id, profileId)
       .then(setProfile)
       .catch((err) => setError(errorMessage(err)));
   }, [game.id, profileId]);

@@ -1,26 +1,33 @@
 import { useState } from "react";
 import { confirmDanger, errorMessage, Mod } from "../../api";
-import { Button, ErrorText } from "../ui";
+import { Button, ErrorText, Toggle } from "../ui";
 import PackageIcon from "./PackageIcon";
-import { dependantsOf, thunderstoreIconURL, useProfile } from "./ProfileContext";
+import { dependantsOf, dependencyLabel, thunderstoreIconURL, useProfile } from "./ProfileContext";
 
 export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
-  const { profile, installed, busy, uninstall } = useProfile();
+  const { profile, installed, busy, uninstall, setEnabled } = useProfile();
   const [error, setError] = useState("");
   const mods = profile.mods ?? [];
 
-  const remove = async (mod: Mod) => {
+  const act = async (action: () => Promise<void>) => {
     setError("");
     try {
-      const dependants = dependantsOf(installed, mod.id).map((m) => m.name);
-      const warning = dependants.length ? `\n\nThese installed mods depend on it: ${dependants.join(", ")}.` : "";
-      if (await confirmDanger("Uninstall mod", `Uninstall ${mod.name}?${warning}`, "Uninstall")) {
-        await uninstall(mod.id);
-      }
+      await action();
     } catch (err) {
       setError(errorMessage(err));
     }
   };
+
+  const remove = (mod: Mod) =>
+    act(async () => {
+      const dependants = dependantsOf(installed, mod.id).map((m) => m.name);
+      const warning = dependants.length
+        ? `\n\nThese mods depend on it and will be disabled: ${dependants.join(", ")}.`
+        : "";
+      if (await confirmDanger("Uninstall mod", `Uninstall ${mod.name}?${warning}`, "Uninstall")) {
+        await uninstall(mod.id);
+      }
+    });
 
   if (mods.length === 0) {
     return (
@@ -38,23 +45,38 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
       <ErrorText>{error}</ErrorText>
       <ul className="divide-y divide-zinc-800">
         {mods.map((m) => {
-          const dependants = dependantsOf(installed, m.id);
+          const unmet = (m.unmetDependencies ?? []).map((d) => dependencyLabel(installed, d));
+          const dependants = dependantsOf(installed, m.id).filter((d) => d.enabled);
           return (
             <li key={m.id} className="flex items-center gap-3 py-2.5">
-              <PackageIcon url={m.source.type === "thunderstore" ? thunderstoreIconURL(m) : ""} size={40} />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium">
-                  {m.name} <span className="font-normal text-zinc-500">by {m.author}</span>
-                </span>
-                {dependants.length > 0 && (
-                  <span className="truncate text-xs text-zinc-500">
-                    Required by {dependants.map((d) => d.name).join(", ")}
+              <Toggle
+                checked={m.active}
+                disabled={busy !== null || unmet.length > 0}
+                title={unmet.length ? `Requires ${unmet.join(", ")}` : m.active ? "Disable" : "Enable"}
+                onChange={(enabled) => act(() => setEnabled(m.id, enabled))}
+              />
+              <div className={`flex min-w-0 flex-1 items-center gap-3 ${m.active ? "" : "opacity-50"}`}>
+                <PackageIcon url={m.source.type === "thunderstore" ? thunderstoreIconURL(m) : ""} size={40} />
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium">
+                    {m.name} <span className="font-normal text-zinc-500">by {m.author}</span>
                   </span>
-                )}
+                  {unmet.length > 0 ? (
+                    <span className="truncate text-xs text-amber-400">
+                      {m.enabled ? "Disabled: requires" : "Requires"} {unmet.join(", ")}
+                    </span>
+                  ) : (
+                    dependants.length > 0 && (
+                      <span className="truncate text-xs text-zinc-500">
+                        Required by {dependants.map((d) => d.name).join(", ")}
+                      </span>
+                    )
+                  )}
+                </div>
               </div>
               <span className="text-xs text-zinc-500">{m.version}</span>
               <Button variant="danger" disabled={busy !== null} onClick={() => remove(m)}>
-                {busy === m.id ? "Removing…" : "Uninstall"}
+                {busy === m.id ? "Working…" : "Uninstall"}
               </Button>
             </li>
           );

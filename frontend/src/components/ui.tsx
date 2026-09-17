@@ -46,6 +46,35 @@ export function BackendBadge({ backend }: { backend: Backend }) {
   return label ? <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">{label}</span> : null;
 }
 
+type ToggleProps = {
+  checked: boolean;
+  disabled?: boolean;
+  title?: string;
+  onChange: (checked: boolean) => void;
+};
+
+export function Toggle({ checked, disabled, title, onChange }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      title={title}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        checked ? "bg-indigo-600" : "bg-zinc-700"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+          checked ? "translate-x-4" : ""
+        }`}
+      />
+    </button>
+  );
+}
+
 export function NsfwBadge() {
   return <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">NSFW</span>;
 }

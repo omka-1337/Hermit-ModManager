@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -267,5 +268,120 @@ func modVersions(p library.Profile) []string {
 func TestCompareVersions(t *testing.T) {
 	if CompareVersions("5.4.2100", "5.4.21") <= 0 || CompareVersions("1.0.0", "1.0.0") != 0 || CompareVersions("1.2.0", "1.10.0") >= 0 {
 		t.Error("CompareVersions")
+	}
+}
+
+func findMod(t *testing.T, p library.Profile, id string) library.Mod {
+	t.Helper()
+	for _, m := range p.Mods {
+		if m.ID == id {
+			return m
+		}
+	}
+	t.Fatalf("mod %s not in profile", id)
+	return library.Mod{}
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func TestEnableDisableCascade(t *testing.T) {
+	tmp := t.TempDir()
+	lib, _ := library.New(filepath.Join(tmp, "lib"), nil)
+	gamePath := filepath.Join(tmp, "game")
+	os.MkdirAll(gamePath, 0o755)
+	game, _ := lib.AddGame("Game", gamePath)
+	pid := game.ActiveProfile
+	dir, _ := lib.ProfileDir(game.ID, pid)
+	dl := &fakeDownloader{t: t, dir: tmp, packages: map[string][]string{
+		"BepInEx-BepInExPack-5.4.2100": {},
+		"Evaisa-LethalLib-1.1.1":       {"BepInEx-BepInExPack-5.4.2100"},
+		"Yuppie-YuppieMod-1.0.0":       {"Evaisa-LethalLib-1.1.1"},
+	}}
+	in := NewInstaller(lib, dl)
+	ctx := context.Background()
+
+	if _, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Yuppie", Name: "YuppieMod", Version: "1.0.0"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	pack := "BepInEx/core/BepInEx.dll"
+	yuppie := "BepInEx/plugins/Yuppie-YuppieMod/YuppieMod.dll"
+
+	// Disabling the loader cascades through LethalLib to YuppieMod.
+	p, err := in.SetEnabled(game.ID, pid, "BepInEx-BepInExPack", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"BepInEx-BepInExPack", "Evaisa-LethalLib", "Yuppie-YuppieMod"} {
+		if findMod(t, p, id).Active {
+			t.Errorf("%s should be inactive", id)
+		}
+	}
+	if y := findMod(t, p, "Yuppie-YuppieMod"); !y.Enabled || len(y.UnmetDependencies) != 1 {
+		t.Errorf("YuppieMod keeps user choice and reports unmet deps: %+v", y)
+	}
+	if exists(filepath.Join(dir, pack)) || !exists(filepath.Join(dir, "disabled/BepInEx-BepInExPack", pack)) {
+		t.Error("loader files not moved to disabled/")
+	}
+	if exists(filepath.Join(dir, yuppie)) || !exists(filepath.Join(dir, "disabled/Yuppie-YuppieMod", yuppie)) {
+		t.Error("dependant files not moved to disabled/")
+	}
+
+	// A mod with unmet dependencies cannot be enabled.
+	if _, err := in.SetEnabled(game.ID, pid, "Yuppie-YuppieMod", true); !errors.Is(err, ErrUnmetDependencies) {
+		t.Errorf("enable with unmet deps: %v", err)
+	}
+
+	// Re-enabling the loader restores everything.
+	p, _ = in.SetEnabled(game.ID, pid, "BepInEx-BepInExPack", true)
+	if y := findMod(t, p, "Yuppie-YuppieMod"); !y.Active || len(y.UnmetDependencies) != 0 {
+		t.Errorf("YuppieMod not restored: %+v", y)
+	}
+	if !exists(filepath.Join(dir, yuppie)) || exists(filepath.Join(dir, "disabled")) {
+		t.Error("files not moved back or disabled/ not pruned")
+	}
+
+	// Uninstalling a dependency deactivates dependants; reinstalling reactivates them.
+	p, _ = in.Uninstall(game.ID, pid, "Evaisa-LethalLib")
+	if y := findMod(t, p, "Yuppie-YuppieMod"); y.Active || y.UnmetDependencies[0] != "Evaisa-LethalLib-1.1.1" {
+		t.Errorf("after uninstalling dependency: %+v", y)
+	}
+	p, _ = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Evaisa", Name: "LethalLib", Version: "1.1.1"}, nil)
+	if !findMod(t, p, "Yuppie-YuppieMod").Active {
+		t.Error("dependant not reactivated after reinstalling dependency")
+	}
+
+	// A disabled mod can be uninstalled and updates keep it disabled.
+	p, _ = in.SetEnabled(game.ID, pid, "Yuppie-YuppieMod", false)
+	p, err = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Yuppie", Name: "YuppieMod", Version: "1.0.0"}, nil)
+	if err != nil || findMod(t, p, "Yuppie-YuppieMod").Enabled || exists(filepath.Join(dir, yuppie)) {
+		t.Errorf("reinstall of disabled mod: err=%v", err)
+	}
+	if _, err := in.Uninstall(game.ID, pid, "Yuppie-YuppieMod"); err != nil || exists(filepath.Join(dir, "disabled")) {
+		t.Errorf("uninstall disabled mod: %v", err)
+	}
+}
+
+func TestRefreshFixesStaleState(t *testing.T) {
+	tmp := t.TempDir()
+	lib, _ := library.New(filepath.Join(tmp, "lib"), nil)
+	os.MkdirAll(filepath.Join(tmp, "game"), 0o755)
+	game, _ := lib.AddGame("Game", filepath.Join(tmp, "game"))
+	dir, _ := lib.ProfileDir(game.ID, game.ActiveProfile)
+	dl := &fakeDownloader{t: t, dir: tmp, packages: map[string][]string{"A-Lib-1.0.0": {}, "A-Mod-1.0.0": {"A-Lib-1.0.0"}}}
+	in := NewInstaller(lib, dl)
+	if _, err := in.Install(context.Background(), game.ID, game.ActiveProfile, thunderstore.PackageRef{Namespace: "A", Name: "Mod", Version: "1.0.0"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate an old manager version that removed the dependency without syncing.
+	lib.UpdateProfile(game.ID, game.ActiveProfile, func(p *library.Profile) error {
+		p.Mods = slices.DeleteFunc(p.Mods, func(m library.Mod) bool { return m.ID == "A-Lib" })
+		return nil
+	})
+	p, err := in.Refresh(game.ID, game.ActiveProfile)
+	if err != nil || findMod(t, p, "A-Mod").Active || !exists(filepath.Join(dir, "disabled/A-Mod")) {
+		t.Errorf("refresh: %+v %v", p.Mods, err)
 	}
 }

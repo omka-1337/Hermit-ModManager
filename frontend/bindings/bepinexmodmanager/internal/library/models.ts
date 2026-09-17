@@ -64,7 +64,24 @@ export interface Mod {
     "name": string;
     "author": string;
     "version": string;
+
+    /**
+     * Enabled is the user's choice.
+     */
     "enabled": boolean;
+
+    /**
+     * Active means the mod's files are in place and loaded by BepInEx: it is
+     * enabled and all its dependencies are installed and active. Files of an
+     * inactive mod are kept under disabled/<mod-id>/ in the profile.
+     */
+    "active": boolean;
+
+    /**
+     * UnmetDependencies lists dependencies that are not installed or not
+     * active; while non-empty the mod cannot be active.
+     */
+    "unmetDependencies": string[] | null;
     "source": ModSource;
 
     /**

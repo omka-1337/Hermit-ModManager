@@ -172,7 +172,7 @@ var keptDirs = []string{"BepInEx", "BepInEx/plugins", "BepInEx/patchers", "BepIn
 // Remove deletes installed files and prunes directories left empty.
 func Remove(profileDir string, files []string) error {
 	var errs []error
-	dirs := map[string]bool{}
+	var removed []string
 	for _, rel := range files {
 		clean, err := cleanEntryName(rel)
 		if err != nil {
@@ -182,20 +182,8 @@ func Remove(profileDir string, files []string) error {
 		if err := os.Remove(filepath.Join(profileDir, filepath.FromSlash(clean))); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			errs = append(errs, err)
 		}
-		for d := path.Dir(clean); d != "."; d = path.Dir(d) {
-			dirs[d] = true
-		}
+		removed = append(removed, clean)
 	}
-	// Deepest directories first; os.Remove fails harmlessly on non-empty ones.
-	sorted := make([]string, 0, len(dirs))
-	for d := range dirs {
-		if !slices.Contains(keptDirs, d) {
-			sorted = append(sorted, d)
-		}
-	}
-	slices.SortFunc(sorted, func(a, b string) int { return strings.Count(b, "/") - strings.Count(a, "/") })
-	for _, d := range sorted {
-		_ = os.Remove(filepath.Join(profileDir, filepath.FromSlash(d)))
-	}
+	pruneDirs(profileDir, removed)
 	return errors.Join(errs...)
 }

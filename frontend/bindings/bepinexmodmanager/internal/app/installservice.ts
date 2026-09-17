@@ -17,6 +17,20 @@ export function InstallPackage(gameID: string, profileID: string, $namespace: st
     return $Call.ByID(3825584552, gameID, profileID, $namespace, name, version);
 }
 
+/**
+ * OpenProfile returns a profile with mod states brought up to date.
+ */
+export function OpenProfile(gameID: string, profileID: string): $CancellablePromise<library$0.Profile> {
+    return $Call.ByID(2168871490, gameID, profileID);
+}
+
+/**
+ * SetModEnabled enables or disables a mod; dependants follow automatically.
+ */
+export function SetModEnabled(gameID: string, profileID: string, modID: string, enabled: boolean): $CancellablePromise<library$0.Profile> {
+    return $Call.ByID(3019243778, gameID, profileID, modID, enabled);
+}
+
 export function UninstallMod(gameID: string, profileID: string, modID: string): $CancellablePromise<library$0.Profile> {
     return $Call.ByID(1415825551, gameID, profileID, modID);
 }
