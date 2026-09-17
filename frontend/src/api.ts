@@ -6,6 +6,7 @@ export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/s
 export type { Settings } from "../bindings/bepinexmodmanager/internal/settings";
 export {
   BrowseService,
+  ConfigService,
   IconService,
   InfoService,
   InstallService,
@@ -13,6 +14,8 @@ export {
   ShareService,
 } from "../bindings/bepinexmodmanager/internal/app";
 export type { ImportProgress, ImportResult, Preview } from "../bindings/bepinexmodmanager/internal/profileshare";
+export type { ConfigContent } from "../bindings/bepinexmodmanager/internal/app";
+export type { Change, Entry, FileInfo as ConfigFileInfo } from "../bindings/bepinexmodmanager/internal/configs";
 export type { LaunchInfo } from "../bindings/bepinexmodmanager/internal/app";
 export { ConflictReason, Stage } from "../bindings/bepinexmodmanager/internal/modinstall";
 export type { Conflict, InstallPlan, Progress, UpdateResult } from "../bindings/bepinexmodmanager/internal/modinstall";

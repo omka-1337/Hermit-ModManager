@@ -4,10 +4,11 @@ import { PlayButton } from "../launch";
 import { ExportModal } from "../share";
 import { Button, ErrorText } from "../ui";
 import BrowseTab from "./BrowseTab";
+import ConfigTab from "./ConfigTab";
 import InstalledTab from "./InstalledTab";
 import { ProfileProvider } from "./ProfileContext";
 
-type Tab = "installed" | "browse";
+type Tab = "installed" | "browse" | "config";
 
 type Props = {
   game: Game;
@@ -32,6 +33,7 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged }: 
   const tabs: { id: Tab; label: string }[] = [
     { id: "installed", label: `Installed${modCount ? ` (${modCount})` : ""}` },
     { id: "browse", label: "Browse" },
+    { id: "config", label: "Config" },
   ];
 
   return (
@@ -83,6 +85,7 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged }: 
         {profile && (
           <ProfileProvider game={game} profile={profile} onProfileChange={setProfile}>
             {tab === "installed" && <InstalledTab onBrowse={() => setTab("browse")} />}
+            {tab === "config" && <ConfigTab />}
             {/* Browse stays mounted so search and scroll survive tab switches. */}
             <div className={tab === "browse" ? "h-full" : "hidden"}>
               <BrowseTab />
