@@ -211,6 +211,7 @@ export default function PackageBrowser({ game, modpacksOnly, isInstalled, render
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-2.5">
                         <span className="truncate text-sm font-medium">{p.name}</span>
                         <span className="truncate text-xs text-zinc-500">by {p.namespace}</span>
+                        <p className="mt-1 line-clamp-2 text-xs text-zinc-400">{p.description}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           {p.is_nsfw && <NsfwBadge />}
                           {!modpacksOnly && isModpack(p) && (
