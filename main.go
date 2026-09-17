@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"log"
 	"os"
@@ -47,12 +48,19 @@ func newBackend() (*backend, error) {
 		app.ID+"/"+app.Version,
 		filepath.Join(root, "cache", "thunderstore"),
 	)
+	rules := func(ctx context.Context, game library.Game) modinstall.Rules {
+		schema, err := ts.Schema(ctx)
+		if err != nil {
+			log.Printf("install rules: %v; using defaults", err)
+		}
+		return modinstall.RulesFromSchema(schema, game.SteamAppID, game.Executable)
+	}
 	return &backend{
 		root:       root,
 		steamRoots: steamRoots,
 		lib:        lib,
 		ts:         ts,
-		installer:  modinstall.NewInstaller(lib, ts),
+		installer:  modinstall.NewInstaller(lib, ts, rules),
 	}, nil
 }
 

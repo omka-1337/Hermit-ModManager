@@ -7,21 +7,15 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"bepinexmodmanager/internal/thunderstore"
 )
-
-// BepInEx folders a package can target. Files in tracked folders go into a
-// per-mod subdirectory (e.g. BepInEx/plugins/<mod-id>/) so they can be removed
-// cleanly; config is shared and never removed on uninstall.
-var trackedRoutes = []string{"plugins", "patchers", "core", "monomod"}
-
-const configRoute = "config"
-
-var metadataFiles = []string{"manifest.json", "icon.png", "readme.md", "changelog.md", "license", "license.md", "license.txt"}
 
 type entry struct {
 	file   *zip.File
@@ -31,51 +25,188 @@ type entry struct {
 
 // planEntries maps archive entries to their destination in the profile.
 //
-// A BepInEx loader pack (an archive with BepInEx/core inside, optionally under
-// one wrapper folder such as "BepInExPack/") is unpacked as-is into the profile
-// root, since it also carries the doorstop files that belong next to the game
-// executable.
-func planEntries(zr *zip.Reader, modID string) ([]entry, error) {
-	var files []*zip.File
+// A mod loader package (listed in rules.LoaderPackages, or recognised by a
+// BepInEx/core folder) is unpacked into the profile root, since it carries the
+// doorstop files that belong next to the game executable. Other packages are
+// placed by the install rules the way r2modman does it:
+//
+//   - a folder named like the last segment of a route (plugins, config, ...),
+//     at any depth, is installed into that route with its structure kept;
+//     when several routes share the name, the one whose path matches the
+//     folder's path best wins;
+//   - other folders are descended into;
+//   - loose files go to the route whose extension matches (the longest match
+//     wins, so .mm.dll beats .dll), else to the default route, flattened to
+//     their file name.
+func planEntries(zr *zip.Reader, modID string, rules Rules) ([]entry, error) {
+	files := map[string]*zip.File{}
+	var names []string
 	for _, f := range zr.File {
-		if !f.FileInfo().IsDir() {
-			files = append(files, f)
+		if f.FileInfo().IsDir() {
+			continue
 		}
-	}
-	loaderRoot, isLoader := findLoaderRoot(files)
-
-	var entries []entry
-	for _, f := range files {
 		name, err := cleanEntryName(f.Name)
 		if err != nil {
 			return nil, err
 		}
-		e := entry{file: f}
-		if isLoader {
-			rel, ok := strings.CutPrefix(name, loaderRoot)
-			if !ok {
-				continue // manifest, icon, readme next to the wrapper folder
-			}
-			e.dest = rel
-			e.config = strings.HasPrefix(strings.ToLower(rel), "bepinex/config/")
-		} else {
-			e.dest, e.config = modDestination(name, modID)
+		if _, dup := files[name]; !dup {
+			names = append(names, name)
 		}
-		if e.dest != "" {
-			entries = append(entries, e)
+		files[name] = f
+	}
+	slices.Sort(names)
+
+	if root, ok := loaderRoot(names, modID, rules); ok {
+		var entries []entry
+		for _, name := range names {
+			rel, ok := strings.CutPrefix(name, root)
+			if !ok || (root == "" && slices.Contains(loaderMetadata, strings.ToLower(rel))) {
+				continue // manifest, icon, readme next to the loader folder
+			}
+			config := strings.HasPrefix(strings.ToLower(rel), "bepinex/config/")
+			entries = append(entries, entry{file: files[name], dest: rel, config: config})
+		}
+		return entries, nil
+	}
+
+	var entries []entry
+	add := func(name string, rule thunderstore.InstallRule, rel string) {
+		e := entry{file: files[name]}
+		switch rule.TrackingMethod {
+		case thunderstore.TrackingNone:
+			e.dest, e.config = path.Join(rule.Route, rel), true
+		case thunderstore.TrackingState:
+			if slices.ContainsFunc(rules.RelativeFileExclusions, func(x string) bool { return strings.EqualFold(x, rel) }) {
+				return
+			}
+			e.dest = path.Join(rule.Route, rel)
+		default: // subdir and anything unknown
+			e.dest = path.Join(rule.Route, modID, rel)
+		}
+		entries = append(entries, e)
+	}
+
+	var walk func(dir string)
+	walk = func(dir string) {
+		subdirs := map[string]bool{}
+		for _, name := range names {
+			rest, ok := strings.CutPrefix(name, dir)
+			if !ok {
+				continue
+			}
+			if sub, _, nested := strings.Cut(rest, "/"); nested {
+				subdirs[sub] = true
+				continue
+			}
+			if rule, ok := ruleForFile(rules.Routes, rest); ok {
+				add(name, rule, rest)
+			}
+		}
+		for _, sub := range slices.Sorted(maps.Keys(subdirs)) {
+			full := dir + sub + "/"
+			rule, ok := ruleForDir(rules.Routes, strings.TrimSuffix(full, "/"))
+			if !ok {
+				walk(full)
+				continue
+			}
+			for _, name := range names {
+				if rel, ok := strings.CutPrefix(name, full); ok {
+					add(name, rule, rel)
+				}
+			}
 		}
 	}
-	return entries, nil
+	walk("")
+
+	// Later entries overwrite earlier ones on disk; keep the last per destination.
+	seen := map[string]bool{}
+	var unique []entry
+	for i := len(entries) - 1; i >= 0; i-- {
+		if !seen[entries[i].dest] {
+			seen[entries[i].dest] = true
+			unique = append(unique, entries[i])
+		}
+	}
+	slices.Reverse(unique)
+	return unique, nil
+}
+
+var loaderMetadata = []string{"manifest.json", "icon.png", "readme.md"}
+
+// loaderRoot reports whether the package is a mod loader and returns the
+// archive prefix that maps to the profile root.
+func loaderRoot(names []string, modID string, rules Rules) (string, bool) {
+	if folder, ok := rules.LoaderPackages[strings.ToLower(modID)]; ok {
+		if folder == "" {
+			return "", true
+		}
+		return folder + "/", true
+	}
+	for _, name := range names {
+		i := strings.Index(strings.ToLower(name), "bepinex/core/")
+		if i < 0 {
+			continue
+		}
+		prefix := name[:i]
+		if prefix == "" || (strings.Count(prefix, "/") == 1 && strings.HasSuffix(prefix, "/")) {
+			return prefix, true
+		}
+	}
+	return "", false
+}
+
+func ruleForFile(routes []thunderstore.InstallRule, name string) (thunderstore.InstallRule, bool) {
+	lower := strings.ToLower(name)
+	best, bestLen := thunderstore.InstallRule{}, 0
+	for _, r := range routes {
+		for _, ext := range r.DefaultFileExtensions {
+			if strings.HasSuffix(lower, strings.ToLower(ext)) && len(ext) > bestLen {
+				best, bestLen = r, len(ext)
+			}
+		}
+	}
+	if bestLen > 0 {
+		return best, true
+	}
+	for _, r := range routes {
+		if r.IsDefaultLocation {
+			return r, true
+		}
+	}
+	return thunderstore.InstallRule{}, false
+}
+
+// ruleForDir matches a folder by its name against the last route segment.
+func ruleForDir(routes []thunderstore.InstallRule, dir string) (thunderstore.InstallRule, bool) {
+	dirParts := strings.Split(dir, "/")
+	name := dirParts[len(dirParts)-1]
+	best, bestScore, found := thunderstore.InstallRule{}, -1, false
+	for _, r := range routes {
+		if !strings.EqualFold(path.Base(r.Route), name) {
+			continue
+		}
+		routeParts := strings.Split(r.Route, "/")
+		score := 0
+		for i := 0; i < len(dirParts) && i < len(routeParts); i++ {
+			if dirParts[len(dirParts)-1-i] == routeParts[len(routeParts)-1-i] {
+				score++
+			}
+		}
+		if score > bestScore {
+			best, bestScore, found = r, score, true
+		}
+	}
+	return best, found
 }
 
 // PlanFiles returns the tracked files Extract would install, without writing anything.
-func PlanFiles(zipPath, modID string) ([]string, error) {
+func PlanFiles(zipPath, modID string, rules Rules) ([]string, error) {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return nil, err
 	}
 	defer zr.Close()
-	entries, err := planEntries(&zr.Reader, modID)
+	entries, err := planEntries(&zr.Reader, modID, rules)
 	if err != nil {
 		return nil, err
 	}
@@ -89,9 +220,9 @@ func PlanFiles(zipPath, modID string) ([]string, error) {
 	return files, nil
 }
 
-// IsLoader reports whether installed files belong to a BepInEx loader pack.
-// Only loader packs place files in the profile root (winhttp.dll and friends);
-// everything else lives under BepInEx/.
+// IsLoader reports whether installed files belong to a mod loader package.
+// Only loader packages place files in the profile root (winhttp.dll and
+// friends); install rules always put other files under a route folder.
 func IsLoader(files []string) bool {
 	return slices.ContainsFunc(files, func(f string) bool { return !strings.Contains(f, "/") })
 }
@@ -100,13 +231,13 @@ func IsLoader(files []string) bool {
 // files as slash-separated paths relative to profileDir. Config files are
 // written only if absent and are not returned, so user edits survive
 // reinstalls and uninstalls.
-func Extract(zipPath, profileDir, modID string) ([]string, error) {
+func Extract(zipPath, profileDir, modID string, rules Rules) ([]string, error) {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return nil, err
 	}
 	defer zr.Close()
-	entries, err := planEntries(&zr.Reader, modID)
+	entries, err := planEntries(&zr.Reader, modID, rules)
 	if err != nil {
 		return nil, err
 	}
@@ -129,48 +260,6 @@ func Extract(zipPath, profileDir, modID string) ([]string, error) {
 	}
 	slices.Sort(installed)
 	return installed, nil
-}
-
-// modDestination maps an archive path of a regular mod to its place in the profile.
-func modDestination(name, modID string) (dest string, isConfig bool) {
-	lower := strings.ToLower(name)
-	if slices.Contains(metadataFiles, lower) {
-		return "", false
-	}
-	if strings.HasPrefix(lower, "bepinex/") {
-		name, lower = name[len("bepinex/"):], lower[len("bepinex/"):]
-	}
-	first, rest, nested := strings.Cut(name, "/")
-	if nested {
-		route := strings.ToLower(first)
-		if route == configRoute {
-			return path.Join("BepInEx", configRoute, rest), true
-		}
-		if slices.Contains(trackedRoutes, route) {
-			return path.Join("BepInEx", route, modID, rest), false
-		}
-	}
-	if strings.HasSuffix(lower, ".mm.dll") {
-		return path.Join("BepInEx", "monomod", modID, name), false
-	}
-	return path.Join("BepInEx", "plugins", modID, name), false
-}
-
-// findLoaderRoot detects a BepInEx loader pack and returns the archive prefix
-// that maps to the profile root ("" or "<Folder>/").
-func findLoaderRoot(files []*zip.File) (string, bool) {
-	for _, f := range files {
-		name := strings.ReplaceAll(f.Name, `\`, "/")
-		i := strings.Index(strings.ToLower(name), "bepinex/core/")
-		if i < 0 {
-			continue
-		}
-		prefix := name[:i]
-		if prefix == "" || (strings.Count(prefix, "/") == 1 && strings.HasSuffix(prefix, "/")) {
-			return prefix, true
-		}
-	}
-	return "", false
 }
 
 func cleanEntryName(name string) (string, error) {

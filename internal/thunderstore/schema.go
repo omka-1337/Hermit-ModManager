@@ -15,7 +15,16 @@ const schemaTTL = 24 * time.Hour
 // Ecosystem is the subset of Thunderstore's ecosystem schema we use: it maps
 // games (by Steam app id or executable) to Thunderstore communities.
 type Ecosystem struct {
-	Games map[string]EcosystemGame `json:"games"`
+	Games             map[string]EcosystemGame `json:"games"`
+	ModloaderPackages []ModloaderPackage       `json:"modloaderPackages"`
+}
+
+// ModloaderPackage identifies a mod loader package (e.g. BepInExPack) and the
+// folder inside its archive that maps to the profile root.
+type ModloaderPackage struct {
+	PackageID  string `json:"packageId"`
+	RootFolder string `json:"rootFolder"`
+	Loader     string `json:"loader"`
 }
 
 type EcosystemGame struct {
@@ -33,10 +42,32 @@ type Distribution struct {
 }
 
 type GameSettings struct {
-	ExeNames       []string       `json:"exeNames"`
-	DataFolderName string         `json:"dataFolderName"`
-	PackageLoader  string         `json:"packageLoader"`
-	Distributions  []Distribution `json:"distributions"`
+	ExeNames               []string       `json:"exeNames"`
+	DataFolderName         string         `json:"dataFolderName"`
+	PackageLoader          string         `json:"packageLoader"`
+	Distributions          []Distribution `json:"distributions"`
+	InstallRules           []InstallRule  `json:"installRules"`
+	RelativeFileExclusions []string       `json:"relativeFileExclusions"`
+}
+
+type TrackingMethod string
+
+const (
+	// TrackingSubdir installs into <route>/<author>-<name>/.
+	TrackingSubdir TrackingMethod = "subdir"
+	// TrackingState installs directly into <route>, tracking each file.
+	TrackingState TrackingMethod = "state"
+	// TrackingNone installs directly into <route> without tracking (configs).
+	TrackingNone TrackingMethod = "none"
+)
+
+// InstallRule says where package files go in a profile, as used by r2modman.
+type InstallRule struct {
+	Route                 string         `json:"route"`
+	TrackingMethod        TrackingMethod `json:"trackingMethod"`
+	DefaultFileExtensions []string       `json:"defaultFileExtensions"`
+	IsDefaultLocation     bool           `json:"isDefaultLocation"`
+	SubRoutes             []InstallRule  `json:"subRoutes"`
 }
 
 // Community is a Thunderstore community (one per game).
@@ -100,7 +131,18 @@ func (c *Client) cachedFetch(ctx context.Context, cacheName, fullURL string, val
 // FindCommunity returns the BepInEx community for a game, matched by Steam app
 // id first and then by executable name.
 func (e *Ecosystem) FindCommunity(steamAppID, executable string) (Community, bool) {
-	var byExe *Community
+	c, _, ok := e.FindGame(steamAppID, executable)
+	return c, ok
+}
+
+// FindGame is FindCommunity that also returns the game's manager settings,
+// including install rules.
+func (e *Ecosystem) FindGame(steamAppID, executable string) (Community, GameSettings, bool) {
+	type match struct {
+		community Community
+		settings  GameSettings
+	}
+	var byExe *match
 	for label, g := range e.Games {
 		if g.Thunderstore == nil {
 			continue
@@ -109,23 +151,23 @@ func (e *Ecosystem) FindCommunity(steamAppID, executable string) (Community, boo
 			if s.PackageLoader != "bepinex" {
 				continue
 			}
-			community := Community{ID: label, Name: g.Thunderstore.DisplayName}
+			m := match{Community{ID: label, Name: g.Thunderstore.DisplayName}, s}
 			if steamAppID != "" && (hasSteamID(s.Distributions, steamAppID) || hasSteamID(g.Distributions, steamAppID)) {
-				return community, true
+				return m.community, m.settings, true
 			}
 			if byExe == nil && executable != "" {
 				for _, exe := range s.ExeNames {
 					if strings.EqualFold(exe, executable) {
-						byExe = &community
+						byExe = &m
 					}
 				}
 			}
 		}
 	}
 	if byExe != nil {
-		return *byExe, true
+		return byExe.community, byExe.settings, true
 	}
-	return Community{}, false
+	return Community{}, GameSettings{}, false
 }
 
 func hasSteamID(ds []Distribution, id string) bool {

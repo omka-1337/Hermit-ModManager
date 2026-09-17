@@ -129,7 +129,7 @@ func TestWrapperRun(t *testing.T) {
 	os.MkdirAll(filepath.Dir(logFile), 0o755)
 	script := `test -L winhttp.dll && echo linked >> ` + report + `; echo "$WINEDLLOVERRIDES" >> ` + report +
 		`; printf '[Info   :   BepInEx] Loading [A 1.0]\n' > '` + logFile + `'; exit 3`
-	w := &Wrapper{Lib: lib, Installer: modinstall.NewInstaller(lib, nil)}
+	w := &Wrapper{Lib: lib, Installer: modinstall.NewInstaller(lib, nil, nil)}
 	var notified string
 	w.Notify = func(s, b string) { notified = s + ": " + b }
 

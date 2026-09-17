@@ -46,33 +46,55 @@ func readFile(t *testing.T, path string) string {
 }
 
 func TestExtractLayouts(t *testing.T) {
+	sideloader := DefaultRules()
+	sideloader.Routes = append(sideloader.Routes,
+		thunderstore.InstallRule{Route: "BepInEx/Sideloader", TrackingMethod: thunderstore.TrackingState, DefaultFileExtensions: []string{".hotmod"}},
+		thunderstore.InstallRule{Route: "QMods", TrackingMethod: thunderstore.TrackingState},
+	)
+	sideloader.RelativeFileExclusions = []string{"manifest.json", "icon.png", "README.md"}
+	fork := DefaultRules()
+	fork.LoaderPackages["denikson-bepinexpack_valheim"] = "BepInExPack_Valheim"
+
 	cases := []struct {
 		name  string
+		rules Rules
+		modID string
 		files map[string]string
 		want  []string
 	}{
 		{
-			"bepinex folder",
+			"bepinex folder, metadata goes to the default route like in r2modman",
+			DefaultRules(), "A-Mod",
 			map[string]string{"BepInEx/plugins/MoreCompany.dll": "", "icon.png": "", "manifest.json": "{}", "README.md": ""},
-			[]string{"BepInEx/plugins/A-Mod/MoreCompany.dll"},
+			[]string{"BepInEx/plugins/A-Mod/MoreCompany.dll", "BepInEx/plugins/A-Mod/README.md", "BepInEx/plugins/A-Mod/icon.png", "BepInEx/plugins/A-Mod/manifest.json"},
 		},
 		{
-			"route at root",
-			map[string]string{"plugins/LethalLib/LethalLib.dll": "", "CHANGELOG.md": "", "LICENSE": ""},
+			"route folder at root keeps its structure",
+			DefaultRules(), "A-Mod",
+			map[string]string{"plugins/LethalLib/LethalLib.dll": ""},
 			[]string{"BepInEx/plugins/A-Mod/LethalLib/LethalLib.dll"},
 		},
 		{
-			"loose files go to plugins, monomod by extension",
-			map[string]string{"Mod.dll": "", "assets/x.bundle": "", "Assembly-CSharp.Mod.mm.dll": ""},
-			[]string{"BepInEx/monomod/A-Mod/Assembly-CSharp.Mod.mm.dll", "BepInEx/plugins/A-Mod/Mod.dll", "BepInEx/plugins/A-Mod/assets/x.bundle"},
-		},
-		{
-			"patchers and case-insensitive routes",
-			map[string]string{"BepInEx/Patchers/P.dll": "", "Plugins/Q.dll": ""},
+			"route folder nested in another folder",
+			DefaultRules(), "A-Mod",
+			map[string]string{"Wrapper/patchers/P.dll": "", "Wrapper/Plugins/Q.dll": ""},
 			[]string{"BepInEx/patchers/A-Mod/P.dll", "BepInEx/plugins/A-Mod/Q.dll"},
 		},
 		{
-			"loader pack with wrapper folder",
+			"loose files are flattened; longest extension wins",
+			DefaultRules(), "A-Mod",
+			map[string]string{"Mod.dll": "", "assets/x.bundle": "", "Assembly-CSharp.Mod.mm.dll": ""},
+			[]string{"BepInEx/monomod/A-Mod/Assembly-CSharp.Mod.mm.dll", "BepInEx/plugins/A-Mod/Mod.dll", "BepInEx/plugins/A-Mod/x.bundle"},
+		},
+		{
+			"state routes install without a mod folder and honour exclusions",
+			sideloader, "A-Mod",
+			map[string]string{"Cool.hotmod": "", "QMods/Thing/mod.json": "", "manifest.json": "{}", "BepInEx/plugins/P.dll": ""},
+			[]string{"BepInEx/Sideloader/Cool.hotmod", "BepInEx/plugins/A-Mod/P.dll", "BepInEx/plugins/A-Mod/manifest.json", "QMods/Thing/mod.json"},
+		},
+		{
+			"loader pack by heuristic",
+			DefaultRules(), "BepInEx-BepInExPack",
 			map[string]string{
 				"BepInExPack/BepInEx/core/BepInEx.dll":   "",
 				"BepInExPack/BepInEx/config/BepInEx.cfg": "",
@@ -82,17 +104,28 @@ func TestExtractLayouts(t *testing.T) {
 			},
 			[]string{"BepInEx/core/BepInEx.dll", "doorstop_config.ini", "winhttp.dll"},
 		},
+		{
+			"loader pack from schema with a custom root folder",
+			fork, "denikson-BepInExPack_Valheim",
+			map[string]string{"BepInExPack_Valheim/BepInEx/core/BepInEx.dll": "", "BepInExPack_Valheim/unstripped_corlib/mscorlib.dll": "", "icon.png": ""},
+			[]string{"BepInEx/core/BepInEx.dll", "unstripped_corlib/mscorlib.dll"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tmp := t.TempDir()
 			profile := filepath.Join(tmp, "profile")
-			got, err := Extract(makeZip(t, tmp, tc.files), profile, "A-Mod")
+			archive := makeZip(t, tmp, tc.files)
+			planned, err := PlanFiles(archive, tc.modID, tc.rules)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !slices.Equal(got, tc.want) {
-				t.Fatalf("files:\n got  %v\n want %v", got, tc.want)
+			got, err := Extract(archive, profile, tc.modID, tc.rules)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(got, tc.want) || !slices.Equal(planned, tc.want) {
+				t.Fatalf("files:\n got  %v\n plan %v\n want %v", got, planned, tc.want)
 			}
 			for _, f := range got {
 				if _, err := os.Stat(filepath.Join(profile, f)); err != nil {
@@ -100,6 +133,37 @@ func TestExtractLayouts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRulesFromSchema(t *testing.T) {
+	schema := &thunderstore.Ecosystem{
+		Games: map[string]thunderstore.EcosystemGame{
+			"valheim": {
+				Thunderstore: &struct {
+					DisplayName string `json:"displayName"`
+				}{"Valheim"},
+				R2modman: []thunderstore.GameSettings{{
+					PackageLoader: "bepinex",
+					Distributions: []thunderstore.Distribution{{Platform: "steam", Identifier: "892970"}},
+					InstallRules:  []thunderstore.InstallRule{{Route: "BepInEx/plugins", TrackingMethod: thunderstore.TrackingSubdir, IsDefaultLocation: true}},
+				}},
+			},
+		},
+		ModloaderPackages: []thunderstore.ModloaderPackage{
+			{PackageID: "denikson-BepInExPack_Valheim", RootFolder: "BepInExPack_Valheim", Loader: "bepinex"},
+			{PackageID: "LavaGang-MelonLoader", Loader: "melonloader"},
+		},
+	}
+	r := RulesFromSchema(schema, "892970", "")
+	if len(r.Routes) != 1 || r.LoaderPackages["denikson-bepinexpack_valheim"] != "BepInExPack_Valheim" || len(r.LoaderPackages) != 1 {
+		t.Errorf("known game: %+v", r)
+	}
+	if r := RulesFromSchema(schema, "1", ""); len(r.Routes) != len(DefaultRules().Routes) {
+		t.Errorf("unknown game should use default routes: %+v", r.Routes)
+	}
+	if r := RulesFromSchema(nil, "892970", ""); len(r.Routes) != len(DefaultRules().Routes) {
+		t.Error("nil schema should use defaults")
 	}
 }
 
@@ -111,7 +175,7 @@ func TestExtractKeepsExistingConfig(t *testing.T) {
 	os.WriteFile(cfg, []byte("user"), 0o644)
 
 	archive := makeZip(t, tmp, map[string]string{"BepInEx/config/mod.cfg": "default", "BepInEx/config/new.cfg": "new", "Mod.dll": ""})
-	files, err := Extract(archive, profile, "A-Mod")
+	files, err := Extract(archive, profile, "A-Mod", DefaultRules())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +192,7 @@ func TestExtractRejectsUnsafePaths(t *testing.T) {
 		tmp := t.TempDir()
 		profile := filepath.Join(tmp, "profile")
 		archive := makeZip(t, tmp, map[string]string{"ok.dll": "", name: ""})
-		if _, err := Extract(archive, profile, "A-Mod"); err == nil {
+		if _, err := Extract(archive, profile, "A-Mod", DefaultRules()); err == nil {
 			t.Errorf("%q: expected error", name)
 		}
 		if _, err := os.Stat(filepath.Join(tmp, "evil.dll")); err == nil {
@@ -140,7 +204,7 @@ func TestExtractRejectsUnsafePaths(t *testing.T) {
 func TestRemovePrunesEmptyDirs(t *testing.T) {
 	tmp := t.TempDir()
 	profile := filepath.Join(tmp, "profile")
-	files, err := Extract(makeZip(t, tmp, map[string]string{"plugins/Deep/Dir/a.dll": ""}), profile, "A-Mod")
+	files, err := Extract(makeZip(t, tmp, map[string]string{"plugins/Deep/Dir/a.dll": ""}), profile, "A-Mod", DefaultRules())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +263,7 @@ func TestInstallerResolvesDependencies(t *testing.T) {
 		"Evaisa-LethalLib-1.0.0":       {"BepInEx-BepInExPack-5.4.2100"},
 		"x753-More_Suits-1.5.2":        {"BepInEx-BepInExPack-5.4.2200", "Evaisa-LethalLib-1.0.0"},
 	}}
-	in := NewInstaller(lib, dl)
+	in := NewInstaller(lib, dl, nil)
 	ctx := context.Background()
 	pid := game.ActiveProfile
 
@@ -300,7 +364,7 @@ func TestEnableDisableCascade(t *testing.T) {
 		"Evaisa-LethalLib-1.1.1":       {"BepInEx-BepInExPack-5.4.2100"},
 		"Yuppie-YuppieMod-1.0.0":       {"Evaisa-LethalLib-1.1.1"},
 	}}
-	in := NewInstaller(lib, dl)
+	in := NewInstaller(lib, dl, nil)
 	ctx := context.Background()
 
 	if _, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Yuppie", Name: "YuppieMod", Version: "1.0.0"}, false, nil); err != nil {
@@ -371,7 +435,7 @@ func TestRefreshFixesStaleState(t *testing.T) {
 	game, _ := lib.AddGame("Game", filepath.Join(tmp, "game"))
 	dir, _ := lib.ProfileDir(game.ID, game.ActiveProfile)
 	dl := &fakeDownloader{t: t, dir: tmp, packages: map[string][]string{"A-Lib-1.0.0": {}, "A-Mod-1.0.0": {"A-Lib-1.0.0"}}}
-	in := NewInstaller(lib, dl)
+	in := NewInstaller(lib, dl, nil)
 	if _, err := in.Install(context.Background(), game.ID, game.ActiveProfile, thunderstore.PackageRef{Namespace: "A", Name: "Mod", Version: "1.0.0"}, false, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +464,7 @@ func TestLoaderConflicts(t *testing.T) {
 		"B-UsesFork-1.0.0":             {"Fork-BepInExPack_Fork-1.0.0"},
 		"C-UsesBoth-1.0.0":             {"BepInEx-BepInExPack-5.4.2100", "Fork-BepInExPack_Fork-1.0.0"},
 	}}
-	in := NewInstaller(lib, dl)
+	in := NewInstaller(lib, dl, nil)
 	ctx := context.Background()
 	ref := func(s string) thunderstore.PackageRef {
 		r, err := thunderstore.ParseDependency(s)

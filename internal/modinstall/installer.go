@@ -36,16 +36,32 @@ type Downloader interface {
 	DownloadPackage(ctx context.Context, ref thunderstore.PackageRef, progress func(done, total int64)) (thunderstore.Archive, error)
 }
 
+// RulesFunc returns the install rules of a game.
+type RulesFunc func(ctx context.Context, game library.Game) Rules
+
 type Installer struct {
 	lib        *library.Library
 	downloader Downloader
+	rules      RulesFunc
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
 }
 
-func NewInstaller(lib *library.Library, downloader Downloader) *Installer {
-	return &Installer{lib: lib, downloader: downloader, locks: map[string]*sync.Mutex{}}
+// NewInstaller creates an installer; rules may be nil to use DefaultRules.
+func NewInstaller(lib *library.Library, downloader Downloader, rules RulesFunc) *Installer {
+	if rules == nil {
+		rules = func(context.Context, library.Game) Rules { return DefaultRules() }
+	}
+	return &Installer{lib: lib, downloader: downloader, rules: rules, locks: map[string]*sync.Mutex{}}
+}
+
+func (in *Installer) rulesFor(ctx context.Context, gameID string) (Rules, error) {
+	game, err := in.lib.GetGame(gameID)
+	if err != nil {
+		return Rules{}, err
+	}
+	return in.rules(ctx, game), nil
 }
 
 // profileLock serialises installs and uninstalls within one profile.
@@ -63,6 +79,7 @@ type plannedPackage struct {
 	ref      thunderstore.PackageRef
 	archive  thunderstore.Archive
 	manifest thunderstore.Manifest
+	rules    Rules
 	files    []string
 }
 
@@ -125,7 +142,11 @@ func (in *Installer) PlanInstall(ctx context.Context, gameID, profileID string, 
 	if err != nil {
 		return InstallPlan{}, err
 	}
-	plan, err := in.resolve(ctx, profile, ref, in.progressFunc(gameID, profileID, ref, onProgress))
+	rules, err := in.rulesFor(ctx, gameID)
+	if err != nil {
+		return InstallPlan{}, err
+	}
+	plan, err := in.resolve(ctx, profile, ref, rules, in.progressFunc(gameID, profileID, ref, onProgress))
 	if err != nil {
 		return InstallPlan{}, err
 	}
@@ -155,8 +176,12 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 	if err != nil {
 		return library.Profile{}, err
 	}
+	rules, err := in.rulesFor(ctx, gameID)
+	if err != nil {
+		return library.Profile{}, err
+	}
 	report := in.progressFunc(gameID, profileID, ref, onProgress)
-	plan, err := in.resolve(ctx, profile, ref, report)
+	plan, err := in.resolve(ctx, profile, ref, rules, report)
 	if err != nil {
 		return library.Profile{}, err
 	}
@@ -212,7 +237,7 @@ func (in *Installer) progressFunc(gameID, profileID string, target thunderstore.
 // resolve downloads the package and its dependency tree and returns the
 // packages to install, dependencies first. Dependencies already installed at a
 // sufficient version are left out; the requested package is always included.
-func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref thunderstore.PackageRef, report func(thunderstore.PackageRef, Stage, int64, int64)) ([]plannedPackage, error) {
+func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref thunderstore.PackageRef, rules Rules, report func(thunderstore.PackageRef, Stage, int64, int64)) ([]plannedPackage, error) {
 	installed := map[string]string{}
 	for _, m := range profile.Mods {
 		installed[m.ID] = m.Version
@@ -241,7 +266,7 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 		if err != nil {
 			return fmt.Errorf("%s: %w", r, err)
 		}
-		files, err := PlanFiles(archive.Path, r.ID())
+		files, err := PlanFiles(archive.Path, r.ID(), rules)
 		if err != nil {
 			return fmt.Errorf("%s: %w", r, err)
 		}
@@ -254,7 +279,7 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 				return err
 			}
 		}
-		plan = append(plan, plannedPackage{ref: r, archive: archive, manifest: manifest, files: files})
+		plan = append(plan, plannedPackage{ref: r, archive: archive, manifest: manifest, rules: rules, files: files})
 		planned[r.ID()] = len(plan) - 1
 		return nil
 	}
@@ -381,7 +406,7 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			prof.Mods = slices.Delete(prof.Mods, i, i+1)
 		}
 
-		files, err := Extract(p.archive.Path, profileDir, p.ref.ID())
+		files, err := Extract(p.archive.Path, profileDir, p.ref.ID(), p.rules)
 		if err != nil {
 			// The old version is already gone, so the profile is saved without it.
 			return errors.Join(fmt.Errorf("install %s: %w", p.ref, err), Sync(profileDir, prof)), nil
