@@ -41,3 +41,10 @@ export function compareVersions(a: string, b: string): number {
   }
   return 0;
 }
+
+// packageLabel turns "<author>-<name>-<version>" into "Name v1.2.3". Authors may
+// contain "-", package names may not.
+export function packageLabel(full: string): string {
+  const m = full.match(/^.*-([^-]+)-(\d+\.\d+\.\d+)$/);
+  return m ? `${m[1].replace(/_/g, " ")} v${m[2]}` : full;
+}

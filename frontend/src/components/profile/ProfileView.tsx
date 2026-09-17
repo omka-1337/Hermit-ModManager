@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage, Game, InstallService, Profile } from "../../api";
+import { packageLabel } from "../../format";
 import { PlayButton } from "../launch";
 import { ExportModal } from "../share";
 import { Button, ErrorText } from "../ui";
@@ -15,9 +16,10 @@ type Props = {
   profileId: string;
   onBack: () => void;
   onGameChanged: () => void;
+  onOpenProfile: (profileId: string) => void;
 };
 
-export default function ProfileView({ game, profileId, onBack, onGameChanged }: Props) {
+export default function ProfileView({ game, profileId, onBack, onGameChanged, onOpenProfile }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState<Tab>("installed");
   const [error, setError] = useState("");
@@ -45,6 +47,9 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged }: 
         <div className="flex min-w-0 flex-col pb-3">
           <span className="text-xs text-zinc-500">{game.name}</span>
           <span className="truncate text-lg font-semibold">{profile?.name ?? "…"}</span>
+          {profile?.modpack && (
+            <span className="truncate text-xs text-indigo-400">Modpack {packageLabel(profile.modpack)}</span>
+          )}
         </div>
         <nav className="ml-6 flex gap-1 self-end">
           {tabs.map((t) => (
@@ -83,7 +88,7 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged }: 
           </div>
         )}
         {profile && (
-          <ProfileProvider game={game} profile={profile} onProfileChange={setProfile}>
+          <ProfileProvider game={game} profile={profile} onProfileChange={setProfile} onOpenProfile={onOpenProfile}>
             {tab === "installed" && <InstalledTab onBrowse={() => setTab("browse")} />}
             {tab === "config" && <ConfigTab />}
             {/* Browse stays mounted so search and scroll survive tab switches. */}

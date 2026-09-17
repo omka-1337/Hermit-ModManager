@@ -169,6 +169,11 @@ export default function BrowseTab() {
                         <span className="truncate text-sm font-medium">{p.name}</span>
                         <span className="truncate text-xs text-zinc-500">by {p.namespace}</span>
                         {p.is_nsfw && <NsfwBadge />}
+                        {(p.categories ?? []).some((c) => c.slug === "modpacks") && (
+                          <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-indigo-300">
+                            MODPACK
+                          </span>
+                        )}
                         {installed.has(`${p.namespace}-${p.name}`) && (
                           <span className="ml-auto shrink-0 text-xs text-indigo-400">Installed</span>
                         )}

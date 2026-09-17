@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { confirmDanger, errorMessage, Game, Library, Profile } from "../api";
+import { packageLabel } from "../format";
 import EditableName from "./EditableName";
 import GameIcon from "./GameIcon";
 import { LaunchSetup, PlayButton } from "./launch";
@@ -110,16 +111,20 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
             const modCount = p.mods?.length ?? 0;
             return (
               <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
-                <EditableName
-                  value={p.name}
-                  className="flex-1"
-                  onSave={(name) =>
-                    run(async () => {
-                      await Library.RenameProfile(game.id, p.id, name);
-                      await loadProfiles();
-                    })
-                  }
-                />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <EditableName
+                    value={p.name}
+                    onSave={(name) =>
+                      run(async () => {
+                        await Library.RenameProfile(game.id, p.id, name);
+                        await loadProfiles();
+                      })
+                    }
+                  />
+                  {p.modpack && (
+                    <span className="truncate text-xs text-indigo-400">Modpack {packageLabel(p.modpack)}</span>
+                  )}
+                </div>
                 <span className="text-xs text-zinc-500">
                   {modCount} {modCount === 1 ? "mod" : "mods"}
                 </span>

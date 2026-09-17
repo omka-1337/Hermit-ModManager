@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"hermit/internal/library"
@@ -120,7 +121,7 @@ func TestExtractLayouts(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := Extract(archive, profile, tc.modID, tc.rules)
+			got, err := Extract(archive, profile, tc.modID, tc.rules, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -175,7 +176,7 @@ func TestExtractKeepsExistingConfig(t *testing.T) {
 	os.WriteFile(cfg, []byte("user"), 0o644)
 
 	archive := makeZip(t, tmp, map[string]string{"BepInEx/config/mod.cfg": "default", "BepInEx/config/new.cfg": "new", "Mod.dll": ""})
-	files, err := Extract(archive, profile, "A-Mod", DefaultRules())
+	files, err := Extract(archive, profile, "A-Mod", DefaultRules(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +193,7 @@ func TestExtractRejectsUnsafePaths(t *testing.T) {
 		tmp := t.TempDir()
 		profile := filepath.Join(tmp, "profile")
 		archive := makeZip(t, tmp, map[string]string{"ok.dll": "", name: ""})
-		if _, err := Extract(archive, profile, "A-Mod", DefaultRules()); err == nil {
+		if _, err := Extract(archive, profile, "A-Mod", DefaultRules(), false); err == nil {
 			t.Errorf("%q: expected error", name)
 		}
 		if _, err := os.Stat(filepath.Join(tmp, "evil.dll")); err == nil {
@@ -204,7 +205,7 @@ func TestExtractRejectsUnsafePaths(t *testing.T) {
 func TestRemovePrunesEmptyDirs(t *testing.T) {
 	tmp := t.TempDir()
 	profile := filepath.Join(tmp, "profile")
-	files, err := Extract(makeZip(t, tmp, map[string]string{"plugins/Deep/Dir/a.dll": ""}), profile, "A-Mod", DefaultRules())
+	files, err := Extract(makeZip(t, tmp, map[string]string{"plugins/Deep/Dir/a.dll": ""}), profile, "A-Mod", DefaultRules(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,11 +225,14 @@ type fakeDownloader struct {
 	t        *testing.T
 	dir      string
 	packages map[string][]string // package -> dependencies
+	mu       sync.Mutex
 	calls    []string
 }
 
 // Versions lists all versions of a package known to the fake.
 func (f *fakeDownloader) Versions(_ context.Context, namespace, name string) ([]thunderstore.Version, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	var out []thunderstore.Version
 	for pkg := range f.packages {
 		if r, err := thunderstore.ParseDependency(pkg); err == nil && r.Namespace == namespace && r.Name == name {
@@ -239,6 +243,8 @@ func (f *fakeDownloader) Versions(_ context.Context, namespace, name string) ([]
 }
 
 func (f *fakeDownloader) DownloadPackage(_ context.Context, ref thunderstore.PackageRef, _ func(int64, int64)) (thunderstore.Archive, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.calls = append(f.calls, ref.String())
 	deps, ok := f.packages[ref.String()]
 	if !ok {
@@ -637,4 +643,84 @@ func TestCheckAndUpdateAll(t *testing.T) {
 	if len(result.Updated) != 2 || len(result.Failed) != 0 {
 		t.Errorf("result: %+v", result)
 	}
+}
+
+func TestInstallModpackAsProfile(t *testing.T) {
+	tmp := t.TempDir()
+	lib, _ := library.New(filepath.Join(tmp, "lib"), nil)
+	os.MkdirAll(filepath.Join(tmp, "game"), 0o755)
+	game, _ := lib.AddGame("Game", filepath.Join(tmp, "game"))
+	dl := &modpackRepo{fakeDownloader: fakeDownloader{t: t, dir: tmp, packages: map[string][]string{
+		"A-Lib-1.0.0":    {},
+		"A-Lib-1.1.0":    {},
+		"A-Mod-1.0.0":    {"A-Lib-1.0.0"},
+		"P-Pack-2.0.0":   {"A-Mod-1.0.0", "A-Lib-1.0.0"},
+		"P-Broken-1.0.0": {"Gone-Mod-1.0.0"},
+	}}}
+	in := NewInstaller(lib, dl, nil)
+	ctx := context.Background()
+
+	var progress []Progress
+	var mu sync.Mutex
+	r, _ := thunderstore.ParseDependency("P-Pack-2.0.0")
+	p, err := in.InstallAsNewProfile(ctx, game.ID, "Pack", r, func(pr Progress) {
+		mu.Lock()
+		progress = append(progress, pr)
+		mu.Unlock()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != "Pack" || p.Modpack != "P-Pack-2.0.0" || p.ID == game.ActiveProfile {
+		t.Errorf("profile: %+v", p)
+	}
+	// The modpack itself is not a mod; dependencies use exact versions.
+	if ids := modVersions(p); !slices.Equal(ids, []string{"A-Lib@1.0.0", "A-Mod@1.0.0"}) {
+		t.Errorf("mods: %v", ids)
+	}
+	dir, _ := lib.ProfileDir(game.ID, p.ID)
+	if readFile(t, filepath.Join(dir, "BepInEx/config/Pack.cfg")) != "modpack" {
+		t.Error("modpack config missing")
+	}
+	if exists(filepath.Join(dir, "BepInEx/plugins/P-Pack")) {
+		t.Error("modpack metadata left in plugins")
+	}
+	last := progress[len(progress)-1]
+	if last.Stage != StageInstall || last.Step != last.Steps || last.Steps != 3 {
+		t.Errorf("last progress: %+v", last)
+	}
+
+	// A failed modpack install leaves no half-made profile behind.
+	r, _ = thunderstore.ParseDependency("P-Broken-1.0.0")
+	if _, err := in.InstallAsNewProfile(ctx, game.ID, "Broken", r, nil); err == nil {
+		t.Fatal("expected error")
+	}
+	if profiles, _ := lib.ListProfiles(game.ID); len(profiles) != 2 {
+		t.Errorf("profiles after failure: %d", len(profiles))
+	}
+}
+
+// modpackRepo ships a config file inside modpack packages ("P-" authors).
+type modpackRepo struct {
+	fakeDownloader
+}
+
+func (m *modpackRepo) DownloadPackage(ctx context.Context, ref thunderstore.PackageRef, progress func(int64, int64)) (thunderstore.Archive, error) {
+	if ref.Namespace != "P" {
+		return m.fakeDownloader.DownloadPackage(ctx, ref, progress)
+	}
+	m.mu.Lock()
+	deps, ok := m.packages[ref.String()]
+	m.mu.Unlock()
+	if !ok {
+		return thunderstore.Archive{}, thunderstore.ErrNotFound
+	}
+	manifest, _ := json.Marshal(map[string]any{"dependencies": deps})
+	path := makeZip(m.t, m.dir, map[string]string{
+		"manifest.json":           string(manifest),
+		"icon.png":                "",
+		"README.md":               "",
+		"BepInEx/config/Pack.cfg": "modpack",
+	})
+	return thunderstore.Archive{Path: path}, nil
 }

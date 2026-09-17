@@ -26,6 +26,8 @@ type ProfileState = {
   report: Report | null;
   // modpack installs exact dependency versions.
   install: (namespace: string, name: string, version: string, modpack: boolean) => Promise<void>;
+  // installModpack creates a new profile from a modpack and opens it.
+  installModpack: (namespace: string, name: string, version: string) => Promise<void>;
   uninstall: (modId: string) => Promise<void>;
   setEnabled: (modId: string, enabled: boolean) => Promise<void>;
   // updates maps ids of outdated mods to their latest version.
@@ -48,10 +50,12 @@ type Props = {
   game: Game;
   profile: Profile;
   onProfileChange: (profile: Profile) => void;
+  // onOpenProfile switches to another profile, e.g. one created from a modpack.
+  onOpenProfile: (profileId: string) => void;
   children: React.ReactNode;
 };
 
-export function ProfileProvider({ game, profile, onProfileChange, children }: Props) {
+export function ProfileProvider({ game, profile, onProfileChange, onOpenProfile, children }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -98,9 +102,10 @@ export function ProfileProvider({ game, profile, onProfileChange, children }: Pr
     () =>
       Events.On("install:progress", (ev) => {
         const p = ev.data;
-        if (p.gameId === game.id && p.profileId === profile.id) setProgress(p);
+        // A modpack installs into a new profile, so match it by package too.
+        if (p.gameId === game.id && (p.profileId === profile.id || p.target === busy)) setProgress(p);
       }),
-    [game.id, profile.id],
+    [game.id, profile.id, busy],
   );
 
   const run = useCallback(
@@ -159,6 +164,17 @@ export function ProfileProvider({ game, profile, onProfileChange, children }: Pr
       progress,
       report,
       install,
+      installModpack: async (namespace, name, version) => {
+        setBusy(`${namespace}-${name}`);
+        setProgress(null);
+        try {
+          const created = await InstallService.InstallModpack(game.id, namespace, name, version, name.replace(/_/g, " "));
+          onOpenProfile(created.id);
+        } finally {
+          setBusy(null);
+          setProgress(null);
+        }
+      },
       uninstall: (modId) => run(modId, () => InstallService.UninstallMod(game.id, profile.id, modId)),
       setEnabled: (modId, enabled) =>
         run(modId, () => InstallService.SetModEnabled(game.id, profile.id, modId, enabled)),
@@ -179,7 +195,7 @@ export function ProfileProvider({ game, profile, onProfileChange, children }: Pr
         return result;
       },
     }),
-    [game, profile, busy, progress, report, run, install, updates, checkingUpdates, checkUpdates],
+    [game, profile, busy, progress, report, run, install, updates, checkingUpdates, checkUpdates, onOpenProfile],
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

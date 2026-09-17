@@ -103,8 +103,19 @@ export interface Progress {
      */
     "package": string;
     "stage": Stage;
+
+    /**
+     * Done and Total are bytes of the current download.
+     */
     "done": number;
     "total": number;
+
+    /**
+     * Step and Steps count packages: finished and known downloads while
+     * downloading, the current and total package while installing.
+     */
+    "step": number;
+    "steps": number;
 }
 
 export enum Stage {

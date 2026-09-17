@@ -12,7 +12,7 @@ type Props = {
 };
 
 export default function InstallButton({ namespace, name, latestVersion, modpack }: Props) {
-  const { installed, busy, progress, install, uninstall } = useProfile();
+  const { profile, installed, busy, progress, install, installModpack, uninstall } = useProfile();
   const [error, setError] = useState("");
   const id = `${namespace}-${name}`;
   const mod = installed.get(id);
@@ -40,14 +40,37 @@ export default function InstallButton({ namespace, name, latestVersion, modpack 
   let status = "";
   if (busy === id && progress) {
     const what = progress.package.replace(/-\d+\.\d+\.\d+$/, "");
+    const count = progress.steps > 1 ? ` ${progress.step}/${progress.steps}` : "";
     if (progress.stage === Stage.StageDownload) {
-      status =
+      const size =
         progress.total > 0
-          ? `Downloading ${what}… ${Math.floor((progress.done / progress.total) * 100)}%`
-          : `Downloading ${what}… ${formatBytes(progress.done)}`;
+          ? `${Math.floor((progress.done / progress.total) * 100)}%`
+          : formatBytes(progress.done);
+      status = `Downloading${count} · ${what} ${size}`;
     } else {
-      status = `Installing ${what}…`;
+      status = `Installing${count} · ${what}`;
     }
+  }
+
+  if (modpack) {
+    const current = profile.modpack?.replace(/-\d+\.\d+\.\d+$/, "") === id;
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="primary"
+            disabled={busy !== null}
+            onClick={() => act(() => installModpack(namespace, name, latestVersion))}
+          >
+            {busy === id ? "Installing…" : "Install as new profile"}
+          </Button>
+          {current && <span className="text-xs text-zinc-500">This profile was created from it</span>}
+        </div>
+        <p className="text-xs text-zinc-500">A modpack becomes its own profile with the exact mod versions it lists.</p>
+        {status && <p className="text-xs text-zinc-400">{status}</p>}
+        <ErrorText>{error}</ErrorText>
+      </div>
+    );
   }
 
   return (

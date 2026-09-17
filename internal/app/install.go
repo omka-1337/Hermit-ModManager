@@ -65,3 +65,9 @@ func (s *InstallService) CheckUpdates(ctx context.Context, gameID, profileID str
 func (s *InstallService) UpdateAll(ctx context.Context, gameID, profileID string) (modinstall.UpdateResult, error) {
 	return s.installer.UpdateAll(ctx, gameID, profileID, emitProgress)
 }
+
+// InstallModpack creates a new profile from a Thunderstore modpack.
+func (s *InstallService) InstallModpack(ctx context.Context, gameID, namespace, name, version, profileName string) (library.Profile, error) {
+	ref := thunderstore.PackageRef{Namespace: namespace, Name: name, Version: version}
+	return s.installer.InstallAsNewProfile(ctx, gameID, profileName, ref, emitProgress)
+}

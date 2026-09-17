@@ -52,7 +52,10 @@ type Profile struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	ID            string `json:"id"`
 	Name          string `json:"name"`
-	Mods          []Mod  `json:"mods"`
+	// Modpack is the Thunderstore modpack the profile was created from,
+	// "<author>-<name>-<version>"; empty for profiles assembled by hand.
+	Modpack string `json:"modpack,omitempty"`
+	Mods    []Mod  `json:"mods"`
 }
 
 type Mod struct {

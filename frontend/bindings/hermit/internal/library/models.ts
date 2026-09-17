@@ -123,6 +123,12 @@ export interface Profile {
     "schemaVersion": number;
     "id": string;
     "name": string;
+
+    /**
+     * Modpack is the Thunderstore modpack the profile was created from,
+     * "<author>-<name>-<version>"; empty for profiles assembled by hand.
+     */
+    "modpack"?: string;
     "mods": Mod[] | null;
 }
 

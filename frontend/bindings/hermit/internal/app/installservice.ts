@@ -20,6 +20,13 @@ export function CheckUpdates(gameID: string, profileID: string): $CancellablePro
 }
 
 /**
+ * InstallModpack creates a new profile from a Thunderstore modpack.
+ */
+export function InstallModpack(gameID: string, $namespace: string, name: string, version: string, profileName: string): $CancellablePromise<library$0.Profile> {
+    return $Call.ByID(2207740552, gameID, $namespace, name, version, profileName);
+}
+
+/**
  * InstallPackage installs a Thunderstore package version with its dependencies
  * into a profile, emitting InstallProgressEvent along the way. Conflicting
  * installed mods are uninstalled only if opts.ReplaceConflicts is set.

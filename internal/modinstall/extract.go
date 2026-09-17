@@ -228,10 +228,10 @@ func IsLoader(files []string) bool {
 }
 
 // Extract unpacks a package archive into profileDir and returns the installed
-// files as slash-separated paths relative to profileDir. Config files are
-// written only if absent and are not returned, so user edits survive
-// reinstalls and uninstalls.
-func Extract(zipPath, profileDir, modID string, rules Rules) ([]string, error) {
+// files as slash-separated paths relative to profileDir. Config files are not
+// returned and, unless overwriteConfigs is set, only written if absent, so
+// user edits survive reinstalls and uninstalls.
+func Extract(zipPath, profileDir, modID string, rules Rules, overwriteConfigs bool) ([]string, error) {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return nil, err
@@ -245,7 +245,7 @@ func Extract(zipPath, profileDir, modID string, rules Rules) ([]string, error) {
 	var installed []string
 	for _, e := range entries {
 		target := filepath.Join(profileDir, filepath.FromSlash(e.dest))
-		if e.config {
+		if e.config && !overwriteConfigs {
 			if _, err := os.Stat(target); err == nil {
 				continue
 			}
