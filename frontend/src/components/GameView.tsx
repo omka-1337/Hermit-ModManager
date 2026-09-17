@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { confirmDanger, errorMessage, Game, Library, Profile } from "../api";
 import EditableName from "./EditableName";
 import { LaunchSetup, PlayButton } from "./launch";
+import { ImportModal } from "./share";
 import { BackendBadge, Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
 
 type Props = {
@@ -15,6 +16,7 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [newProfile, setNewProfile] = useState("");
   const [error, setError] = useState("");
+  const [importing, setImporting] = useState(false);
 
   const run = async (action: () => Promise<void>) => {
     setError("");
@@ -150,8 +152,25 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
           <Button type="submit" disabled={!newProfile.trim()}>
             Create profile
           </Button>
+          <Button type="button" variant="ghost" onClick={() => setImporting(true)}>
+            Import…
+          </Button>
         </form>
       </section>
+
+      {importing && (
+        <ImportModal
+          game={game}
+          onClose={() => {
+            setImporting(false);
+            loadProfiles();
+          }}
+          onImported={(profileId) => {
+            setImporting(false);
+            onOpenProfile(profileId);
+          }}
+        />
+      )}
     </div>
   );
 }

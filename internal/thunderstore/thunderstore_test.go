@@ -3,10 +3,12 @@ package thunderstore
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -142,5 +144,39 @@ func TestExclusionsFallBackToBundledList(t *testing.T) {
 	ex := c.Exclusions(context.Background())
 	if !ex["ebkr-r2modman"] || len(ex) < 10 {
 		t.Errorf("bundled exclusions: %v", ex)
+	}
+}
+
+func TestProfileCodeRoundTrip(t *testing.T) {
+	const code = "0d2f8a5c-1b2e-4c3d-9e8f-123456789abc"
+	var stored string
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/experimental/legacyprofile/create/", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		stored = string(body)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"key": "` + code + `"}`))
+	})
+	mux.HandleFunc("GET /api/experimental/legacyprofile/get/"+code+"/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(stored))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := NewClient(srv.URL, "test", t.TempDir())
+	ctx := context.Background()
+
+	got, err := c.UploadProfile(ctx, []byte("zip bytes"))
+	if err != nil || got != code || !strings.HasPrefix(stored, "#r2modman\n") {
+		t.Fatalf("upload: %q %v stored=%q", got, err, stored)
+	}
+	data, err := c.DownloadProfile(ctx, " "+code+"\n")
+	if err != nil || string(data) != "zip bytes" {
+		t.Errorf("download: %q %v", data, err)
+	}
+	if _, err := c.DownloadProfile(ctx, "not-a-code"); !errors.Is(err, ErrInvalidCode) {
+		t.Errorf("invalid code: %v", err)
+	}
+	if _, err := c.DownloadProfile(ctx, "11111111-1111-1111-1111-111111111111"); err == nil {
+		t.Error("unknown code must fail")
 	}
 }

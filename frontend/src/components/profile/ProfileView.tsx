@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { errorMessage, Game, InstallService, Profile } from "../../api";
 import { PlayButton } from "../launch";
+import { ExportModal } from "../share";
 import { Button, ErrorText } from "../ui";
 import BrowseTab from "./BrowseTab";
 import InstalledTab from "./InstalledTab";
@@ -19,6 +20,7 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged }: 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState<Tab>("installed");
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     InstallService.OpenProfile(game.id, profileId)
@@ -61,9 +63,16 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged }: 
           {game.activeProfile === profileId && (
             <span className="text-xs font-medium text-indigo-400">Active profile</span>
           )}
+          {profile && (
+            <Button variant="ghost" onClick={() => setExporting(true)}>
+              Export
+            </Button>
+          )}
           <PlayButton game={game} profileId={profileId} onPlayed={onGameChanged} />
         </div>
       </header>
+
+      {exporting && profile && <ExportModal game={game} profile={profile} onClose={() => setExporting(false)} />}
 
       <div className="min-h-0 flex-1">
         {error && (

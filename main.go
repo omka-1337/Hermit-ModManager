@@ -16,6 +16,7 @@ import (
 	"bepinexmodmanager/internal/library"
 	"bepinexmodmanager/internal/modinstall"
 	"bepinexmodmanager/internal/platform"
+	"bepinexmodmanager/internal/profileshare"
 	"bepinexmodmanager/internal/settings"
 	"bepinexmodmanager/internal/steam"
 	"bepinexmodmanager/internal/thunderstore"
@@ -26,6 +27,7 @@ var assets embed.FS
 
 func init() {
 	application.RegisterEvent[modinstall.Progress](app.InstallProgressEvent)
+	application.RegisterEvent[profileshare.ImportProgress](app.ImportProgressEvent)
 }
 
 type backend struct {
@@ -88,6 +90,9 @@ func main() {
 			application.NewService(app.NewBrowseService(b.lib, b.ts, settingsStore)),
 			application.NewService(app.NewInstallService(b.installer)),
 			application.NewService(app.NewLaunchService(b.lib, b.steamRoots)),
+			application.NewService(app.NewShareService(
+				profileshare.NewSharer(b.lib, b.installer, b.ts, filepath.Join(b.root, "cache", "imports")),
+			)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

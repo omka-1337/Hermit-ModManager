@@ -8,10 +8,14 @@ import type { Events } from "@wailsio/runtime";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import type * as modinstall$0 from "../../../../../bepinexmodmanager/internal/modinstall/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as profileshare$0 from "../../../../../bepinexmodmanager/internal/profileshare/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "import:progress": profileshare$0.ImportProgress;
             "install:progress": modinstall$0.Progress;
         }
     }

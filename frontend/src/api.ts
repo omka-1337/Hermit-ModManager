@@ -4,7 +4,14 @@ export { Backend, Library, Runtime } from "../bindings/bepinexmodmanager/interna
 export type { Game, GameCandidate, Mod, Profile } from "../bindings/bepinexmodmanager/internal/library";
 export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/settings";
 export type { Settings } from "../bindings/bepinexmodmanager/internal/settings";
-export { BrowseService, InfoService, InstallService, LaunchService } from "../bindings/bepinexmodmanager/internal/app";
+export {
+  BrowseService,
+  InfoService,
+  InstallService,
+  LaunchService,
+  ShareService,
+} from "../bindings/bepinexmodmanager/internal/app";
+export type { ImportProgress, ImportResult, Preview } from "../bindings/bepinexmodmanager/internal/profileshare";
 export type { LaunchInfo } from "../bindings/bepinexmodmanager/internal/app";
 export { ConflictReason, Stage } from "../bindings/bepinexmodmanager/internal/modinstall";
 export type { Conflict, InstallPlan, Progress } from "../bindings/bepinexmodmanager/internal/modinstall";

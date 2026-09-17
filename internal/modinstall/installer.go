@@ -46,6 +46,9 @@ type Options struct {
 	// Modpack installs exact dependency versions, so everyone installing the
 	// same modpack gets the same set of mods.
 	Modpack bool `json:"modpack"`
+	// Pinned maps mod ids to the versions to use whenever they appear as a
+	// dependency, e.g. the mod list of an imported profile.
+	Pinned map[string]string `json:"-"`
 }
 
 // RulesFunc returns the install rules of a game.
@@ -269,7 +272,12 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 				return nil // being resolved (cycle) or already planned at a sufficient version
 			}
 		}
-		if !root {
+		if pinned, ok := opts.Pinned[r.ID()]; ok && !root {
+			if installed[r.ID()] == pinned {
+				return nil
+			}
+			r.Version = pinned
+		} else if !root {
 			v, ok := installed[r.ID()]
 			switch {
 			case opts.Modpack && v == r.Version:
