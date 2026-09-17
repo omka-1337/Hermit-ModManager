@@ -13,6 +13,13 @@ import * as library$0 from "../library/models.js";
 import * as modinstall$0 from "../modinstall/models.js";
 
 /**
+ * CheckUpdates lists installed Thunderstore mods with a newer version.
+ */
+export function CheckUpdates(gameID: string, profileID: string): $CancellablePromise<modinstall$0.Update[] | null> {
+    return $Call.ByID(1740444231, gameID, profileID);
+}
+
+/**
  * InstallPackage installs a Thunderstore package version with its dependencies
  * into a profile, emitting InstallProgressEvent along the way. Conflicting
  * installed mods are uninstalled only if opts.ReplaceConflicts is set.
@@ -45,4 +52,11 @@ export function SetModEnabled(gameID: string, profileID: string, modID: string, 
 
 export function UninstallMod(gameID: string, profileID: string, modID: string): $CancellablePromise<library$0.Profile> {
     return $Call.ByID(1415825551, gameID, profileID, modID);
+}
+
+/**
+ * UpdateAll updates every outdated mod, emitting InstallProgressEvent.
+ */
+export function UpdateAll(gameID: string, profileID: string): $CancellablePromise<modinstall$0.UpdateResult> {
+    return $Call.ByID(554059943, gameID, profileID);
 }

@@ -331,6 +331,93 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 	return result, nil
 }
 
+// Update is an installed mod with a newer version available.
+type Update struct {
+	ModID   string `json:"modId"`
+	Current string `json:"current"`
+	Latest  string `json:"latest"`
+}
+
+// CheckUpdates returns the Thunderstore mods of a profile that have a newer
+// version. Mods whose versions cannot be fetched are skipped.
+func (in *Installer) CheckUpdates(ctx context.Context, gameID, profileID string) ([]Update, error) {
+	profile, err := in.lib.GetProfile(gameID, profileID)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		updates = []Update{}
+		limit   = make(chan struct{}, 6)
+	)
+	for _, m := range profile.Mods {
+		if m.Source.Type != library.SourceThunderstore {
+			continue
+		}
+		ref := thunderstore.PackageRef{Namespace: m.Author, Name: m.Name, Version: m.Version}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			limit <- struct{}{}
+			defer func() { <-limit }()
+			if latest := in.latestVersion(ctx, ref); CompareVersions(latest, ref.Version) > 0 {
+				mu.Lock()
+				updates = append(updates, Update{ModID: ref.ID(), Current: ref.Version, Latest: latest})
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(updates, func(a, b Update) int { return strings.Compare(a.ModID, b.ModID) })
+	return updates, nil
+}
+
+type UpdateResult struct {
+	Profile library.Profile `json:"profile"`
+	Updated []string        `json:"updated"`
+	// Failed maps mod ids to the reason they could not be updated.
+	Failed map[string]string `json:"failed"`
+}
+
+// UpdateAll updates every outdated mod of a profile to its latest version, the
+// way r2modman's "Update all" does; new dependencies get their latest version
+// too. A mod that fails, e.g. because of a conflict, does not stop the others.
+func (in *Installer) UpdateAll(ctx context.Context, gameID, profileID string, onProgress func(Progress)) (UpdateResult, error) {
+	updates, err := in.CheckUpdates(ctx, gameID, profileID)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	result := UpdateResult{Updated: []string{}, Failed: map[string]string{}}
+	for _, u := range updates {
+		// An earlier update may already have pulled this one in as a dependency.
+		if current, err := in.lib.GetProfile(gameID, profileID); err == nil {
+			if i := slices.IndexFunc(current.Mods, func(m library.Mod) bool { return m.ID == u.ModID }); i >= 0 &&
+				CompareVersions(current.Mods[i].Version, u.Latest) >= 0 {
+				result.Updated = append(result.Updated, u.ModID)
+				continue
+			}
+		}
+		ref, err := thunderstore.ParseDependency(u.ModID + "-" + u.Latest)
+		if err == nil {
+			_, err = in.Install(ctx, gameID, profileID, ref, Options{}, onProgress)
+		}
+		if err != nil {
+			if ctx.Err() != nil {
+				return UpdateResult{}, ctx.Err()
+			}
+			result.Failed[u.ModID] = err.Error()
+			continue
+		}
+		result.Updated = append(result.Updated, u.ModID)
+	}
+	result.Profile, err = in.lib.GetProfile(gameID, profileID)
+	return result, err
+}
+
 // latestVersion returns the newest published version of a package, or the
 // given version if the list cannot be fetched.
 func (in *Installer) latestVersion(ctx context.Context, r thunderstore.PackageRef) string {

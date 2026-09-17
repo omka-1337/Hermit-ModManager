@@ -6,7 +6,8 @@ import PackageIcon from "./PackageIcon";
 import { dependantsOf, dependencyLabel, thunderstoreIconURL, useProfile } from "./ProfileContext";
 
 export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
-  const { profile, installed, busy, report, uninstall, setEnabled } = useProfile();
+  const { profile, installed, busy, report, uninstall, setEnabled, updates, checkingUpdates, checkUpdates, update, updateAll } =
+    useProfile();
   const [error, setError] = useState("");
   const mods = profile.mods ?? [];
 
@@ -44,6 +45,37 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
   return (
     <div className="h-full overflow-y-auto px-6 py-3">
       <ErrorText>{error}</ErrorText>
+      <div className="mb-3 flex items-center justify-between gap-3 text-sm">
+        <span className={updates.size ? "text-amber-400" : "text-zinc-500"}>
+          {checkingUpdates
+            ? "Checking for updates…"
+            : updates.size
+              ? `${updates.size} ${updates.size === 1 ? "update" : "updates"} available`
+              : "All mods are up to date"}
+        </span>
+        <div className="flex gap-2">
+          <Button variant="ghost" disabled={checkingUpdates || busy !== null} onClick={() => act(checkUpdates)}>
+            Check again
+          </Button>
+          {updates.size > 0 && (
+            <Button
+              variant="primary"
+              disabled={busy !== null}
+              onClick={() =>
+                act(async () => {
+                  const result = await updateAll();
+                  const failed = Object.entries(result?.failed ?? {});
+                  if (failed.length) {
+                    throw new Error(failed.map(([id, reason]) => `${id}: ${reason}`).join("\n"));
+                  }
+                })
+              }
+            >
+              {busy === "update-all" ? "Updating…" : "Update all"}
+            </Button>
+          )}
+        </div>
+      </div>
       {report && <LaunchReport report={report} />}
       <ul className="divide-y divide-zinc-800">
         {mods.map((m) => {
@@ -78,7 +110,15 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
                   )}
                 </div>
               </div>
-              <span className="text-xs text-zinc-500">{m.version}</span>
+              <span className="text-xs text-zinc-500">
+                {m.version}
+                {updates.has(m.id) && <span className="text-amber-400"> → {updates.get(m.id)}</span>}
+              </span>
+              {updates.has(m.id) && (
+                <Button disabled={busy !== null} onClick={() => act(() => update(m.id))}>
+                  {busy === m.id ? "Updating…" : "Update"}
+                </Button>
+              )}
               <Button variant="danger" disabled={busy !== null} onClick={() => remove(m)}>
                 {busy === m.id ? "Working…" : "Uninstall"}
               </Button>

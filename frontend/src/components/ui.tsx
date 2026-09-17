@@ -80,7 +80,7 @@ export function NsfwBadge() {
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {
-  return children ? <p className="text-sm text-red-400">{children}</p> : null;
+  return children ? <p className="text-sm whitespace-pre-line text-red-400">{children}</p> : null;
 }
 
 type ModalProps = { title: string; onClose: () => void; children: ReactNode; wide?: boolean };

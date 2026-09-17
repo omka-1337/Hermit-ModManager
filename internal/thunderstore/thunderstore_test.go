@@ -191,3 +191,24 @@ func TestProfileCodeRoundTrip(t *testing.T) {
 		t.Error("unknown code must fail")
 	}
 }
+
+func TestVersionsAreCached(t *testing.T) {
+	hits := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/cyberstorm/package/A/Mod/versions/", func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Write([]byte(`[{"version_number": "1.0.0"}, {"version_number": "1.2.0"}]`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := NewClient(srv.URL, "test", t.TempDir())
+	for range 3 {
+		v, err := c.Versions(context.Background(), "A", "Mod")
+		if err != nil || len(v) != 2 {
+			t.Fatalf("versions: %+v %v", v, err)
+		}
+	}
+	if hits != 1 {
+		t.Errorf("fetched %d times", hits)
+	}
+}

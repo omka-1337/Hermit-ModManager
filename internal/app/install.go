@@ -55,3 +55,13 @@ func (s *InstallService) SetModEnabled(gameID, profileID, modID string, enabled 
 func (s *InstallService) OpenProfile(gameID, profileID string) (library.Profile, error) {
 	return s.installer.Refresh(gameID, profileID)
 }
+
+// CheckUpdates lists installed Thunderstore mods with a newer version.
+func (s *InstallService) CheckUpdates(ctx context.Context, gameID, profileID string) ([]modinstall.Update, error) {
+	return s.installer.CheckUpdates(ctx, gameID, profileID)
+}
+
+// UpdateAll updates every outdated mod, emitting InstallProgressEvent.
+func (s *InstallService) UpdateAll(ctx context.Context, gameID, profileID string) (modinstall.UpdateResult, error) {
+	return s.installer.UpdateAll(ctx, gameID, profileID, emitProgress)
+}

@@ -15,7 +15,7 @@ export {
 export type { ImportProgress, ImportResult, Preview } from "../bindings/bepinexmodmanager/internal/profileshare";
 export type { LaunchInfo } from "../bindings/bepinexmodmanager/internal/app";
 export { ConflictReason, Stage } from "../bindings/bepinexmodmanager/internal/modinstall";
-export type { Conflict, InstallPlan, Progress } from "../bindings/bepinexmodmanager/internal/modinstall";
+export type { Conflict, InstallPlan, Progress, UpdateResult } from "../bindings/bepinexmodmanager/internal/modinstall";
 export { IssueKind } from "../bindings/bepinexmodmanager/internal/launch";
 export type { Issue, Report } from "../bindings/bepinexmodmanager/internal/launch";
 export { Ordering } from "../bindings/bepinexmodmanager/internal/thunderstore";

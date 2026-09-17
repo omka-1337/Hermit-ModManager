@@ -12,5 +12,7 @@ export type {
     InstallPlan,
     Options,
     PlannedPackage,
-    Progress
+    Progress,
+    Update,
+    UpdateResult
 } from "./models.js";

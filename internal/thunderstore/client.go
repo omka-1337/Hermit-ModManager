@@ -33,6 +33,14 @@ type Client struct {
 	exclusionsMu      sync.Mutex
 	exclusions        map[string]bool
 	exclusionsFetched time.Time
+
+	versionsMu sync.Mutex
+	versions   map[string]cachedVersions
+}
+
+type cachedVersions struct {
+	versions  []Version
+	fetchedAt time.Time
 }
 
 // NewClient creates a client; the ecosystem schema is cached in cacheDir.

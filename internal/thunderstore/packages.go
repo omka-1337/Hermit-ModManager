@@ -168,13 +168,31 @@ func (c *Client) Package(ctx context.Context, community, namespace, name string)
 	return d, nil
 }
 
+// versionsTTL limits how often version lists are refetched; checking a
+// profile for updates asks for every installed mod.
+const versionsTTL = 15 * time.Minute
+
 // Versions returns all versions of a package, in the order returned by the API.
 func (c *Client) Versions(ctx context.Context, namespace, name string) ([]Version, error) {
+	key := namespace + "-" + name
+	c.versionsMu.Lock()
+	cached, ok := c.versions[key]
+	c.versionsMu.Unlock()
+	if ok && time.Since(cached.fetchedAt) < versionsTTL {
+		return cached.versions, nil
+	}
+
 	var versions []Version
 	path := "/api/cyberstorm/package/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/versions/"
 	if err := c.getJSON(ctx, path, nil, &versions); err != nil {
 		return nil, err
 	}
+	c.versionsMu.Lock()
+	if c.versions == nil {
+		c.versions = map[string]cachedVersions{}
+	}
+	c.versions[key] = cachedVersions{versions: versions, fetchedAt: time.Now()}
+	c.versionsMu.Unlock()
 	return versions, nil
 }
 

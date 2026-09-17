@@ -30,3 +30,14 @@ export function formatAgo(iso: string): string {
   }
   return "just now";
 }
+
+// compareVersions compares dotted numeric versions like "5.4.2100".
+export function compareVersions(a: string, b: string): number {
+  const as = a.split(".").map(Number);
+  const bs = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(as.length, bs.length); i++) {
+    const d = (as[i] ?? 0) - (bs[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}

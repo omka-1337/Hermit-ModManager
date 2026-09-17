@@ -592,3 +592,49 @@ func TestDependencyVersionStrategy(t *testing.T) {
 		t.Errorf("modpack exact versions: %v", modVersions(p))
 	}
 }
+
+func TestCheckAndUpdateAll(t *testing.T) {
+	tmp := t.TempDir()
+	lib, _ := library.New(filepath.Join(tmp, "lib"), nil)
+	os.MkdirAll(filepath.Join(tmp, "game"), 0o755)
+	game, _ := lib.AddGame("Game", filepath.Join(tmp, "game"))
+	pid := game.ActiveProfile
+	dl := &fakeDownloader{t: t, dir: tmp, packages: map[string][]string{
+		"A-Lib-1.0.0":  {},
+		"A-Mod-1.0.0":  {"A-Lib-1.0.0"},
+		"B-Same-1.0.0": {},
+	}}
+	in := NewInstaller(lib, dl, nil)
+	ctx := context.Background()
+	for _, pkg := range []string{"A-Mod-1.0.0", "B-Same-1.0.0"} {
+		r, _ := thunderstore.ParseDependency(pkg)
+		if _, err := in.Install(ctx, game.ID, pid, r, Options{}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	updates, err := in.CheckUpdates(ctx, game.ID, pid)
+	if err != nil || len(updates) != 0 {
+		t.Fatalf("no updates expected: %+v %v", updates, err)
+	}
+
+	// New releases: the mod now needs the newer library.
+	dl.packages["A-Lib-1.1.0"] = []string{}
+	dl.packages["A-Mod-2.0.0"] = []string{"A-Lib-1.1.0"}
+	updates, _ = in.CheckUpdates(ctx, game.ID, pid)
+	want := []Update{{ModID: "A-Lib", Current: "1.0.0", Latest: "1.1.0"}, {ModID: "A-Mod", Current: "1.0.0", Latest: "2.0.0"}}
+	if !slices.Equal(updates, want) {
+		t.Fatalf("updates: %+v", updates)
+	}
+
+	result, err := in.UpdateAll(ctx, game.ID, pid, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ids := modVersions(result.Profile); !slices.Equal(ids, []string{"A-Lib@1.1.0", "A-Mod@2.0.0", "B-Same@1.0.0"}) {
+		t.Errorf("after update all: %v", ids)
+	}
+	if len(result.Updated) != 2 || len(result.Failed) != 0 {
+		t.Errorf("result: %+v", result)
+	}
+}
