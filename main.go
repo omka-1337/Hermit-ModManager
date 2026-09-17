@@ -90,6 +90,7 @@ func main() {
 			application.NewService(app.NewBrowseService(b.lib, b.ts, settingsStore)),
 			application.NewService(app.NewInstallService(b.installer)),
 			application.NewService(app.NewLaunchService(b.lib, b.steamRoots)),
+			application.NewService(app.NewIconService(b.steamRoots)),
 			application.NewService(app.NewShareService(
 				profileshare.NewSharer(b.lib, b.installer, b.ts, filepath.Join(b.root, "cache", "imports")),
 			)),

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { confirmDanger, errorMessage, Game, Library, Profile } from "../api";
 import EditableName from "./EditableName";
+import GameIcon from "./GameIcon";
 import { LaunchSetup, PlayButton } from "./launch";
 import { ImportModal } from "./share";
 import { BackendBadge, Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
@@ -73,7 +74,8 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
       <header className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
+        <GameIcon name={game.name} steamAppId={game.steamAppId} size={56} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <EditableName
             value={game.name}
             className="text-2xl font-semibold"

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { errorMessage, Settings, SettingsStore } from "../api";
+import { AppInfo, errorMessage, InfoService, Settings, SettingsStore } from "../api";
 import { ErrorText } from "../components/ui";
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState<AppInfo | null>(null);
 
   useEffect(() => {
+    InfoService.GetInfo().then(setInfo).catch(console.error);
     SettingsStore.Get()
       .then(setSettings)
       .catch((err) => setError(errorMessage(err)));
@@ -41,6 +43,15 @@ export default function SettingsView() {
               <span className="text-xs text-zinc-500">Show packages marked as NSFW when browsing Thunderstore.</span>
             </span>
           </label>
+        </section>
+      )}
+      {info && (
+        <section className="flex flex-col gap-1 text-sm">
+          <h2 className="text-sm font-semibold tracking-wide text-zinc-400 uppercase">About</h2>
+          <p>{info.name}</p>
+          <p className="text-zinc-500">
+            v{info.version} · {info.os}/{info.arch}
+          </p>
         </section>
       )}
     </div>

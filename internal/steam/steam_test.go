@@ -116,3 +116,26 @@ func TestLaunchOptions(t *testing.T) {
 		t.Errorf("app without options: %q", got)
 	}
 }
+
+func TestIconPath(t *testing.T) {
+	root := t.TempDir()
+	hash := "80d2453285274e4723c884a671cdd3f8fe2f766f"
+	write(t, filepath.Join(root, "appcache/librarycache/1966720", hash+".jpg"), "jpg")
+	write(t, filepath.Join(root, "appcache/librarycache/1966720/header.jpg"), "")
+	write(t, filepath.Join(root, "appcache/librarycache/892970/2f64c9a826e2c6cf3253fea4834c2e612db09143.jpg"), "jpg")
+	write(t, filepath.Join(root, "appcache/librarycache/70_icon.jpg"), "jpg")
+
+	if got := IconPath([]string{root}, "892970"); filepath.Base(got) != "2f64c9a826e2c6cf3253fea4834c2e612db09143.jpg" {
+		t.Errorf("jpg icon: %q", got)
+	}
+	write(t, filepath.Join(root, "steam/games", hash+".ico"), "ico")
+	if got := IconPath([]string{root}, "1966720"); got != filepath.Join(root, "steam/games", hash+".ico") {
+		t.Errorf("ico preferred: %q", got)
+	}
+	if got := IconPath([]string{root}, "70"); filepath.Base(got) != "70_icon.jpg" {
+		t.Errorf("old layout: %q", got)
+	}
+	if IconPath([]string{root}, "../x") != "" || IconPath([]string{root}, "10") != "" {
+		t.Error("invalid or unknown app must have no icon")
+	}
+}

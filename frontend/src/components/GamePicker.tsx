@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage, Game, GameCandidate, Library } from "../api";
 import AddGameForm from "./AddGameForm";
+import GameIcon from "./GameIcon";
 import { BackendBadge, Button, ErrorText, RuntimeBadge } from "./ui";
 
 type Props = {
@@ -79,6 +80,7 @@ export default function GamePicker({ onAdded, actions }: Props) {
           <ul className="divide-y divide-zinc-800">
             {games.map((c) => (
               <li key={c.path} className="flex items-center gap-3 px-4 py-2.5">
+                <GameIcon name={c.name} steamAppId={c.steamAppId} size={36} />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="truncate text-sm font-medium">{c.name}</span>
                   <div className="flex items-center gap-1.5">

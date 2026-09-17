@@ -6,6 +6,7 @@ export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/s
 export type { Settings } from "../bindings/bepinexmodmanager/internal/settings";
 export {
   BrowseService,
+  IconService,
   InfoService,
   InstallService,
   LaunchService,

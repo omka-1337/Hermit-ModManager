@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
-import { AppInfo, Game, InfoService } from "../api";
+import { useState } from "react";
+import { Game } from "../api";
+import GameIcon from "../components/GameIcon";
 import GamePicker from "../components/GamePicker";
 import GameView from "../components/GameView";
 import ProfileView from "../components/profile/ProfileView";
 import SettingsView from "./SettingsView";
+import Tooltip from "../components/Tooltip";
 import { Button, Modal } from "../components/ui";
 
 type Props = {
@@ -15,55 +17,68 @@ type Props = {
 
 export default function Main({ games, selectedId, onSelect, onGamesChanged }: Props) {
   const [adding, setAdding] = useState(false);
-  const [info, setInfo] = useState<AppInfo | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [openProfile, setOpenProfile] = useState<{ gameId: string; profileId: string } | null>(null);
   const selected = games.find((g) => g.id === selectedId) ?? null;
 
-  useEffect(() => {
-    InfoService.GetInfo().then(setInfo).catch(console.error);
-  }, []);
-
   return (
     <div className="flex h-full">
-      <aside className="flex w-60 flex-col border-r border-zinc-800 bg-zinc-900">
-        <div className="px-4 py-5 text-lg font-semibold">BepInEx Mod Manager</div>
-        <div className="px-4 pb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">Games</div>
-        <nav className="flex flex-col gap-0.5 overflow-y-auto px-2">
-          {games.map((g) => (
+      <aside className="flex w-[72px] shrink-0 flex-col items-center border-r border-zinc-800 bg-zinc-900 py-3">
+        <nav className="flex w-full flex-1 flex-col items-center gap-2 overflow-y-auto">
+          {games.map((g) => {
+            const active = g.id === selectedId && !showSettings;
+            return (
+              <Tooltip key={g.id} label={g.name}>
+                <button
+                  aria-label={g.name}
+                  onClick={() => {
+                    setOpenProfile(null);
+                    setShowSettings(false);
+                    onSelect(g.id);
+                  }}
+                  className="group relative flex items-center"
+                >
+                  <span
+                    className={`absolute -left-3.5 h-8 w-1 rounded-r bg-white transition-opacity ${
+                      active ? "opacity-100" : "opacity-0 group-hover:opacity-40"
+                    }`}
+                  />
+                  <GameIcon
+                    name={g.name}
+                    steamAppId={g.steamAppId}
+                    size={44}
+                    className={`transition ${active ? "ring-2 ring-indigo-500" : "opacity-80 group-hover:opacity-100"}`}
+                  />
+                </button>
+              </Tooltip>
+            );
+          })}
+          <Tooltip label="Add game">
             <button
-              key={g.id}
-              onClick={() => {
-                setOpenProfile(null);
-                setShowSettings(false);
-                onSelect(g.id);
-              }}
-              className={`truncate rounded-md px-3 py-2 text-left text-sm ${
-                g.id === selectedId && !showSettings ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/60"
-              }`}
+              aria-label="Add game"
+              onClick={() => setAdding(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-dashed border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-100"
             >
-              {g.name}
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+              </svg>
             </button>
-          ))}
+          </Tooltip>
         </nav>
-        <div className="px-2 pt-2">
-          <Button variant="ghost" className="w-full text-left" onClick={() => setAdding(true)}>
-            + Add game
-          </Button>
-        </div>
-        <div className="mt-auto px-2">
+        <Tooltip label="Settings">
           <button
+            aria-label="Settings"
             onClick={() => setShowSettings(true)}
-            className={`w-full rounded-md px-3 py-2 text-left text-sm ${
-              showSettings ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/60"
+            className={`mt-2 flex h-11 w-11 items-center justify-center rounded-lg ${
+              showSettings ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
             }`}
           >
-            Settings
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
           </button>
-        </div>
-        <div className="px-4 py-3 text-xs text-zinc-500">
-          {info ? `v${info.version} · ${info.os}/${info.arch}` : "…"}
-        </div>
+        </Tooltip>
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto">
