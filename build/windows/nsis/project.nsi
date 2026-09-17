@@ -21,7 +21,7 @@ Unicode true
 ####
 ## !define INFO_PROJECTNAME    "my-project" # Default "BepinexModManager"
 ## !define INFO_COMPANYNAME    "My Company" # Default "Stanislav Lisenko"
-## !define INFO_PRODUCTNAME    "My Product Name" # Default "BepInEx Mod Manager"
+## !define INFO_PRODUCTNAME    "My Product Name" # Default "Hermit"
 ## !define INFO_PRODUCTVERSION "1.0.0"     # Default "0.1.0"
 ## !define INFO_COPYRIGHT      "(c) Now, My Company" # Default "© 2026 Stanislav Lisenko"
 ###

@@ -18,11 +18,11 @@ import * as profileshare$0 from "../profileshare/models.js";
  * ExportCode uploads the profile to Thunderstore and returns a code anyone can import.
  */
 export function ExportCode(gameID: string, profileID: string): $CancellablePromise<string> {
-    return $Call.ByID(101770858, gameID, profileID);
+    return $Call.ByID(3910186799, gameID, profileID);
 }
 
 export function ExportFile(gameID: string, profileID: string, dest: string): $CancellablePromise<void> {
-    return $Call.ByID(3441545005, gameID, profileID, dest);
+    return $Call.ByID(3317430852, gameID, profileID, dest);
 }
 
 /**
@@ -30,9 +30,9 @@ export function ExportFile(gameID: string, profileID: string, dest: string): $Ca
  * ImportProgressEvent and InstallProgressEvent along the way.
  */
 export function Import(gameID: string, archive: string, name: string): $CancellablePromise<profileshare$0.ImportResult> {
-    return $Call.ByID(1449284596, gameID, archive, name);
+    return $Call.ByID(1593718553, gameID, archive, name);
 }
 
 export function PreviewImport(src: profileshare$0.Source): $CancellablePromise<profileshare$0.Preview> {
-    return $Call.ByID(587226262, src);
+    return $Call.ByID(783449389, src);
 }

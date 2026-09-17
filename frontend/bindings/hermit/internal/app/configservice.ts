@@ -19,11 +19,11 @@ import * as configs$0 from "../configs/models.js";
 import * as $models from "./models.js";
 
 export function ListConfigs(gameID: string, profileID: string): $CancellablePromise<configs$0.FileInfo[] | null> {
-    return $Call.ByID(1159118257, gameID, profileID);
+    return $Call.ByID(3441872064, gameID, profileID);
 }
 
 export function ReadConfig(gameID: string, profileID: string, path: string): $CancellablePromise<$models.ConfigContent> {
-    return $Call.ByID(3298827508, gameID, profileID, path);
+    return $Call.ByID(3676173335, gameID, profileID, path);
 }
 
 /**
@@ -31,12 +31,12 @@ export function ReadConfig(gameID: string, profileID: string, path: string): $Ca
  * rest of the file untouched.
  */
 export function SaveConfigChanges(gameID: string, profileID: string, path: string, changes: configs$0.Change[] | null): $CancellablePromise<$models.ConfigContent> {
-    return $Call.ByID(2283415490, gameID, profileID, path, changes);
+    return $Call.ByID(1482945187, gameID, profileID, path, changes);
 }
 
 /**
  * SaveConfigText replaces a config file's contents.
  */
 export function SaveConfigText(gameID: string, profileID: string, path: string, text: string): $CancellablePromise<$models.ConfigContent> {
-    return $Call.ByID(237686550, gameID, profileID, path, text);
+    return $Call.ByID(2151844933, gameID, profileID, path, text);
 }

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"sync"
 
-	"bepinexmodmanager/internal/steam"
+	"hermit/internal/steam"
 )
 
 var (

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/settings"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/settings"
+	"hermit/internal/thunderstore"
 )
 
 var ErrNoCommunity = errors.New("this game is not available on Thunderstore")

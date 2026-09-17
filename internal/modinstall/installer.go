@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/thunderstore"
 )
 
 type Stage string

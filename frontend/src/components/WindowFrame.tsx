@@ -28,7 +28,7 @@ export default function WindowFrame({ children }: { children: ReactNode }) {
         onDoubleClick={() => Window.ToggleMaximise()}
         className="flex h-9 shrink-0 items-center border-b border-zinc-800 bg-zinc-900 select-none"
       >
-        <span className="px-4 text-xs font-medium text-zinc-400">BepInEx Mod Manager</span>
+        <span className="px-4 text-xs font-medium text-zinc-400">Hermit</span>
         <div className="flex-1" />
         <div style={noDrag} className="flex h-full" onDoubleClick={(e) => e.stopPropagation()}>
           <WindowButton label="Minimise" onClick={() => Window.Minimise()}>

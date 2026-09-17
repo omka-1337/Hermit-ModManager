@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bepinexmodmanager/internal/launch"
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/steam"
+	"hermit/internal/launch"
+	"hermit/internal/library"
+	"hermit/internal/steam"
 )
 
 type LaunchInfo struct {

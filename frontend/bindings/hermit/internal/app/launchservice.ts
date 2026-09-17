@@ -14,7 +14,7 @@ import * as launch$0 from "../launch/models.js";
 import * as $models from "./models.js";
 
 export function GetLaunchInfo(gameID: string): $CancellablePromise<$models.LaunchInfo> {
-    return $Call.ByID(2016763558, gameID);
+    return $Call.ByID(1209504583, gameID);
 }
 
 /**
@@ -22,7 +22,7 @@ export function GetLaunchInfo(gameID: string): $CancellablePromise<$models.Launc
  * profile, or nil if the profile was not launched with mods yet.
  */
 export function GetLaunchReport(gameID: string, profileID: string): $CancellablePromise<launch$0.Report | null> {
-    return $Call.ByID(1918197460, gameID, profileID);
+    return $Call.ByID(1812944685, gameID, profileID);
 }
 
 /**
@@ -30,5 +30,5 @@ export function GetLaunchReport(gameID: string, profileID: string): $Cancellable
  * only if the game's launch options run it through the wrapper.
  */
 export function Play(gameID: string, profileID: string): $CancellablePromise<void> {
-    return $Call.ByID(100397041, gameID, profileID);
+    return $Call.ByID(3396312206, gameID, profileID);
 }

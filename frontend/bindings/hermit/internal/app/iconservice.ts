@@ -15,5 +15,5 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
  * GetSteamIcon returns the icon of a Steam app as a data URL, or "" if none is cached.
  */
 export function GetSteamIcon(appID: string): $CancellablePromise<string> {
-    return $Call.ByID(3529068272, appID);
+    return $Call.ByID(586910799, appID);
 }

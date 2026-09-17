@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=bepinexmodmanager
-Exec=bepinexmodmanager
-Icon=bepinexmodmanager
+Name=hermit
+Exec=hermit
+Icon=hermit
 Categories=Development;
 Terminal=false
 Keywords=wails

@@ -1,4 +1,4 @@
-module bepinexmodmanager
+module hermit
 
 go 1.25.0
 

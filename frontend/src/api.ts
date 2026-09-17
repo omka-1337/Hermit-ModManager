@@ -1,9 +1,9 @@
 import { CancelError, Dialogs } from "@wailsio/runtime";
 
-export { Backend, Library, Runtime } from "../bindings/bepinexmodmanager/internal/library";
-export type { Game, GameCandidate, Mod, Profile } from "../bindings/bepinexmodmanager/internal/library";
-export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/settings";
-export type { Settings } from "../bindings/bepinexmodmanager/internal/settings";
+export { Backend, Library, Runtime } from "../bindings/hermit/internal/library";
+export type { Game, GameCandidate, Mod, Profile } from "../bindings/hermit/internal/library";
+export { Store as SettingsStore } from "../bindings/hermit/internal/settings";
+export type { Settings } from "../bindings/hermit/internal/settings";
 export {
   BrowseService,
   ConfigService,
@@ -12,24 +12,24 @@ export {
   InstallService,
   LaunchService,
   ShareService,
-} from "../bindings/bepinexmodmanager/internal/app";
-export type { ImportProgress, ImportResult, Preview } from "../bindings/bepinexmodmanager/internal/profileshare";
-export type { ConfigContent } from "../bindings/bepinexmodmanager/internal/app";
-export type { Change, Entry, FileInfo as ConfigFileInfo } from "../bindings/bepinexmodmanager/internal/configs";
-export type { LaunchInfo } from "../bindings/bepinexmodmanager/internal/app";
-export { ConflictReason, Stage } from "../bindings/bepinexmodmanager/internal/modinstall";
-export type { Conflict, InstallPlan, Progress, UpdateResult } from "../bindings/bepinexmodmanager/internal/modinstall";
-export { IssueKind } from "../bindings/bepinexmodmanager/internal/launch";
-export type { Issue, Report } from "../bindings/bepinexmodmanager/internal/launch";
-export { Ordering } from "../bindings/bepinexmodmanager/internal/thunderstore";
+} from "../bindings/hermit/internal/app";
+export type { ImportProgress, ImportResult, Preview } from "../bindings/hermit/internal/profileshare";
+export type { ConfigContent } from "../bindings/hermit/internal/app";
+export type { Change, Entry, FileInfo as ConfigFileInfo } from "../bindings/hermit/internal/configs";
+export type { LaunchInfo } from "../bindings/hermit/internal/app";
+export { ConflictReason, Stage } from "../bindings/hermit/internal/modinstall";
+export type { Conflict, InstallPlan, Progress, UpdateResult } from "../bindings/hermit/internal/modinstall";
+export { IssueKind } from "../bindings/hermit/internal/launch";
+export type { Issue, Report } from "../bindings/hermit/internal/launch";
+export { Ordering } from "../bindings/hermit/internal/thunderstore";
 export type {
   Community,
   Filters,
   PackageDetail,
   PackageList,
   PackageSummary,
-} from "../bindings/bepinexmodmanager/internal/thunderstore";
-export type { AppInfo } from "../bindings/bepinexmodmanager/internal/app";
+} from "../bindings/hermit/internal/thunderstore";
+export type { AppInfo } from "../bindings/hermit/internal/app";
 
 // isCancelled reports whether err comes from cancelling a CancellablePromise.
 export function isCancelled(err: unknown): boolean {

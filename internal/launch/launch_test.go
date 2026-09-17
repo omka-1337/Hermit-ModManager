@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/modinstall"
+	"hermit/internal/library"
+	"hermit/internal/modinstall"
 )
 
 func mkfile(t *testing.T, path string) {

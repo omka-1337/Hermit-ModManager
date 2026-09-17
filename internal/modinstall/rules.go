@@ -3,7 +3,7 @@ package modinstall
 import (
 	"strings"
 
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/thunderstore"
 )
 
 // Rules decide where package files go in a profile. They come from the

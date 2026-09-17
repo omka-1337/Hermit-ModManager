@@ -5,7 +5,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"bepinexmodmanager/internal/profileshare"
+	"hermit/internal/profileshare"
 )
 
 // ImportProgressEvent carries profileshare.ImportProgress to the frontend.

@@ -16,7 +16,7 @@ import * as modinstall$0 from "../modinstall/models.js";
  * CheckUpdates lists installed Thunderstore mods with a newer version.
  */
 export function CheckUpdates(gameID: string, profileID: string): $CancellablePromise<modinstall$0.Update[] | null> {
-    return $Call.ByID(1740444231, gameID, profileID);
+    return $Call.ByID(306278890, gameID, profileID);
 }
 
 /**
@@ -25,14 +25,14 @@ export function CheckUpdates(gameID: string, profileID: string): $CancellablePro
  * installed mods are uninstalled only if opts.ReplaceConflicts is set.
  */
 export function InstallPackage(gameID: string, profileID: string, $namespace: string, name: string, version: string, opts: modinstall$0.Options): $CancellablePromise<library$0.Profile> {
-    return $Call.ByID(3825584552, gameID, profileID, $namespace, name, version, opts);
+    return $Call.ByID(1680772357, gameID, profileID, $namespace, name, version, opts);
 }
 
 /**
  * OpenProfile returns a profile with mod states brought up to date.
  */
 export function OpenProfile(gameID: string, profileID: string): $CancellablePromise<library$0.Profile> {
-    return $Call.ByID(2168871490, gameID, profileID);
+    return $Call.ByID(2915043105, gameID, profileID);
 }
 
 /**
@@ -40,23 +40,23 @@ export function OpenProfile(gameID: string, profileID: string): $CancellableProm
  * installing it would change, including conflicts with installed mods.
  */
 export function PlanInstall(gameID: string, profileID: string, $namespace: string, name: string, version: string, opts: modinstall$0.Options): $CancellablePromise<modinstall$0.InstallPlan> {
-    return $Call.ByID(3551015545, gameID, profileID, $namespace, name, version, opts);
+    return $Call.ByID(175763358, gameID, profileID, $namespace, name, version, opts);
 }
 
 /**
  * SetModEnabled enables or disables a mod; dependants follow automatically.
  */
 export function SetModEnabled(gameID: string, profileID: string, modID: string, enabled: boolean): $CancellablePromise<library$0.Profile> {
-    return $Call.ByID(3019243778, gameID, profileID, modID, enabled);
+    return $Call.ByID(2812849217, gameID, profileID, modID, enabled);
 }
 
 export function UninstallMod(gameID: string, profileID: string, modID: string): $CancellablePromise<library$0.Profile> {
-    return $Call.ByID(1415825551, gameID, profileID, modID);
+    return $Call.ByID(465513794, gameID, profileID, modID);
 }
 
 /**
  * UpdateAll updates every outdated mod, emitting InstallProgressEvent.
  */
 export function UpdateAll(gameID: string, profileID: string): $CancellablePromise<modinstall$0.UpdateResult> {
-    return $Call.ByID(554059943, gameID, profileID);
+    return $Call.ByID(4173545652, gameID, profileID);
 }

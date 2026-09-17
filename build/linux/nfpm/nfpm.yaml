@@ -3,26 +3,26 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "bepinexmodmanager"
+name: "hermit"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
 section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
-description: "Mod manager for BepInEx games"
+description: "BepInEx mod manager for Linux"
 vendor: "Stanislav Lisenko"
 homepage: "https://wails.io"
 license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/bepinexmodmanager"
-    dst: "/usr/local/bin/bepinexmodmanager"
+  - src: "./bin/hermit"
+    dst: "/usr/local/bin/hermit"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/bepinexmodmanager.png"
-  - src: "./build/linux/bepinexmodmanager.desktop"
-    dst: "/usr/share/applications/bepinexmodmanager.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/hermit.png"
+  - src: "./build/linux/hermit.desktop"
+    dst: "/usr/share/applications/hermit.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

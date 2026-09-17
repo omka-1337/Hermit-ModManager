@@ -9,6 +9,17 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
-export function GetInfo(): $CancellablePromise<$models.AppInfo> {
-    return $Call.ByID(81926092);
+export function CompleteSetup(): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(3224027075);
+}
+
+export function Get(): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(4255639083);
+}
+
+/**
+ * Update replaces user-editable preferences; SetupCompleted is kept as stored.
+ */
+export function Update(st: $models.Settings): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(971130280, st);
 }

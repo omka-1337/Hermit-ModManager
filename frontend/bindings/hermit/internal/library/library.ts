@@ -14,75 +14,75 @@ import * as $models from "./models.js";
  * The game directory itself is only inspected, never modified.
  */
 export function AddGame(name: string, path: string): $CancellablePromise<$models.Game> {
-    return $Call.ByID(3776984505, name, path);
+    return $Call.ByID(878809748, name, path);
 }
 
 export function CreateProfile(gameID: string, name: string): $CancellablePromise<$models.Profile> {
-    return $Call.ByID(1729703513, gameID, name);
+    return $Call.ByID(2983081572, gameID, name);
 }
 
 /**
  * DiscoverGames lists BepInEx-compatible (Unity) games installed via Steam.
  */
 export function DiscoverGames(): $CancellablePromise<$models.GameCandidate[] | null> {
-    return $Call.ByID(2648490954);
+    return $Call.ByID(4035536283);
 }
 
 /**
  * FindGameBySteamAppID returns the added game with the given Steam app id.
  */
 export function FindGameBySteamAppID(appID: string): $CancellablePromise<$models.Game> {
-    return $Call.ByID(241843278, appID);
+    return $Call.ByID(3847233253, appID);
 }
 
 /**
  * GameDataDir returns the manager's data directory of an existing game.
  */
 export function GameDataDir(id: string): $CancellablePromise<string> {
-    return $Call.ByID(576302353, id);
+    return $Call.ByID(2883461416, id);
 }
 
 export function GetGame(id: string): $CancellablePromise<$models.Game> {
-    return $Call.ByID(2697987102, id);
+    return $Call.ByID(847070151, id);
 }
 
 export function GetProfile(gameID: string, profileID: string): $CancellablePromise<$models.Profile> {
-    return $Call.ByID(2807330721, gameID, profileID);
+    return $Call.ByID(812765102, gameID, profileID);
 }
 
 /**
  * InspectGamePath describes a manually picked folder without adding it.
  */
 export function InspectGamePath(path: string): $CancellablePromise<$models.GameCandidate> {
-    return $Call.ByID(1059388653, path);
+    return $Call.ByID(3462437808, path);
 }
 
 /**
  * ListGames returns all games sorted by name.
  */
 export function ListGames(): $CancellablePromise<$models.Game[] | null> {
-    return $Call.ByID(4270808947);
+    return $Call.ByID(213019094);
 }
 
 /**
  * ListProfiles returns the profiles of a game sorted by name.
  */
 export function ListProfiles(gameID: string): $CancellablePromise<$models.Profile[] | null> {
-    return $Call.ByID(2278594226, gameID);
+    return $Call.ByID(3466402589, gameID);
 }
 
 /**
  * ProfileDir returns the directory of an existing profile.
  */
 export function ProfileDir(gameID: string, profileID: string): $CancellablePromise<string> {
-    return $Call.ByID(3070680956, gameID, profileID);
+    return $Call.ByID(2314582283, gameID, profileID);
 }
 
 /**
  * RemoveGame deletes the game entry together with all its profiles and installed mods.
  */
 export function RemoveGame(id: string): $CancellablePromise<void> {
-    return $Call.ByID(4060869042, id);
+    return $Call.ByID(4254519933, id);
 }
 
 /**
@@ -90,26 +90,26 @@ export function RemoveGame(id: string): $CancellablePromise<void> {
  * cannot be removed; if the active profile is removed, another one becomes active.
  */
 export function RemoveProfile(gameID: string, profileID: string): $CancellablePromise<void> {
-    return $Call.ByID(2380875285, gameID, profileID);
+    return $Call.ByID(1790767720, gameID, profileID);
 }
 
 export function RenameGame(id: string, name: string): $CancellablePromise<$models.Game> {
-    return $Call.ByID(3543568712, id, name);
+    return $Call.ByID(3672950315, id, name);
 }
 
 export function RenameProfile(gameID: string, profileID: string, name: string): $CancellablePromise<$models.Profile> {
-    return $Call.ByID(3446026439, gameID, profileID, name);
+    return $Call.ByID(44990354, gameID, profileID, name);
 }
 
 /**
  * Root is the library root directory.
  */
 export function Root(): $CancellablePromise<string> {
-    return $Call.ByID(1146206816);
+    return $Call.ByID(2168985351);
 }
 
 export function SetActiveProfile(gameID: string, profileID: string): $CancellablePromise<$models.Game> {
-    return $Call.ByID(3430361727, gameID, profileID);
+    return $Call.ByID(2469530084, gameID, profileID);
 }
 
 /**
@@ -117,5 +117,5 @@ export function SetActiveProfile(gameID: string, profileID: string): $Cancellabl
  * with respect to other library operations.
  */
 export function UpdateProfile(gameID: string, profileID: string, fn: any): $CancellablePromise<$models.Profile> {
-    return $Call.ByID(464027226, gameID, profileID, fn);
+    return $Call.ByID(3304062087, gameID, profileID, fn);
 }

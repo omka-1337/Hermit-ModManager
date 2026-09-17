@@ -6,9 +6,9 @@ version: '3'
 # This information is used to generate the build assets.
 info:
   companyName: "Stanislav Lisenko" # The name of the company
-  productName: "BepInEx Mod Manager" # The name of the application
-  productIdentifier: "com.stanislav.bepinexmodmanager" # The unique product identifier
-  description: "Mod manager for BepInEx games" # The application description
+  productName: "Hermit" # The name of the application
+  productIdentifier: "com.stanislav.hermit" # The unique product identifier
+  description: "BepInEx mod manager for Linux" # The application description
   copyright: "(c) 2026, Stanislav Lisenko" # Copyright text
   comments: "" # Comments
   version: "0.1.0" # The application version

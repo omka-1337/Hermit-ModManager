@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/modinstall"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/modinstall"
+	"hermit/internal/thunderstore"
 )
 
 // CodeStore stores profiles behind shareable codes (Thunderstore).

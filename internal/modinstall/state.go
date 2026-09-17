@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/thunderstore"
 )
 
 // disabledDir holds files of inactive mods, one subdirectory per mod.

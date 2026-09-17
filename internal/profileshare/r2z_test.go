@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"bepinexmodmanager/internal/library"
+	"hermit/internal/library"
 )
 
 func write(t *testing.T, path, content string) {

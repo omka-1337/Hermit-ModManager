@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/thunderstore"
 )
 
 type entry struct {

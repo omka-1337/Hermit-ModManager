@@ -3,7 +3,7 @@
 <plist version="1.0">
 	<dict>
 		<key>CFBundleExecutable</key>
-		<string>bepinexmodmanager</string>
+		<string>hermit</string>
 		<key>CFBundleGetInfoString</key>
 		<string>This is a comment</string>
 		<key>CFBundleIconFile</key>
@@ -11,9 +11,9 @@
 		<key>CFBundleIconName</key>
 		<string>appicon</string>
 		<key>CFBundleIdentifier</key>
-		<string>com.stanislav.bepinexmodmanager</string>
+		<string>com.stanislav.hermit</string>
 		<key>CFBundleName</key>
-		<string>BepInEx Mod Manager</string>
+		<string>Hermit</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>

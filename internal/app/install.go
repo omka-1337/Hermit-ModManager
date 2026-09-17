@@ -5,9 +5,9 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/modinstall"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/modinstall"
+	"hermit/internal/thunderstore"
 )
 
 // InstallProgressEvent carries modinstall.Progress to the frontend.

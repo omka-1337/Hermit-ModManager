@@ -3,8 +3,8 @@ package app
 import (
 	"strings"
 
-	"bepinexmodmanager/internal/configs"
-	"bepinexmodmanager/internal/library"
+	"hermit/internal/configs"
+	"hermit/internal/library"
 )
 
 // ConfigService lets the frontend browse and edit mod configs of a profile.

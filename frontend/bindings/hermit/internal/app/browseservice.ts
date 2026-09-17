@@ -18,21 +18,21 @@ import * as thunderstore$0 from "../thunderstore/models.js";
  * GetCommunity returns the Thunderstore community of a game, or ErrNoCommunity.
  */
 export function GetCommunity(gameID: string): $CancellablePromise<thunderstore$0.Community> {
-    return $Call.ByID(2491043851, gameID);
+    return $Call.ByID(2203832108, gameID);
 }
 
 export function GetFilters(community: string): $CancellablePromise<thunderstore$0.Filters> {
-    return $Call.ByID(1825591857, community);
+    return $Call.ByID(3200877138, community);
 }
 
 export function GetPackage(community: string, $namespace: string, name: string): $CancellablePromise<thunderstore$0.PackageDetail> {
-    return $Call.ByID(2731032766, community, $namespace, name);
+    return $Call.ByID(2066353449, community, $namespace, name);
 }
 
 export function GetReadme($namespace: string, name: string, version: string): $CancellablePromise<string> {
-    return $Call.ByID(756038540, $namespace, name, version);
+    return $Call.ByID(2339225513, $namespace, name, version);
 }
 
 export function ListPackages(community: string, opts: thunderstore$0.ListOptions): $CancellablePromise<thunderstore$0.PackageList> {
-    return $Call.ByID(2514346247, community, opts);
+    return $Call.ByID(2414085512, community, opts);
 }

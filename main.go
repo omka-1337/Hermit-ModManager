@@ -11,15 +11,15 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"bepinexmodmanager/internal/app"
-	"bepinexmodmanager/internal/launch"
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/modinstall"
-	"bepinexmodmanager/internal/platform"
-	"bepinexmodmanager/internal/profileshare"
-	"bepinexmodmanager/internal/settings"
-	"bepinexmodmanager/internal/steam"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/app"
+	"hermit/internal/launch"
+	"hermit/internal/library"
+	"hermit/internal/modinstall"
+	"hermit/internal/platform"
+	"hermit/internal/profileshare"
+	"hermit/internal/settings"
+	"hermit/internal/steam"
+	"hermit/internal/thunderstore"
 )
 
 //go:embed all:frontend/dist
@@ -40,6 +40,7 @@ type backend struct {
 
 func newBackend() (*backend, error) {
 	root := filepath.Join(xdg.DataHome, app.ID)
+	migrateDataDir(filepath.Join(xdg.DataHome, "bepinexmodmanager"), root)
 	steamRoots := steam.DefaultRoots()
 	lib, err := library.New(root, steamRoots)
 	if err != nil {
@@ -82,7 +83,7 @@ func main() {
 
 	wailsApp := application.New(application.Options{
 		Name:        app.Name,
-		Description: "Mod manager for BepInEx games",
+		Description: "BepInEx mod manager for Linux",
 		Services: []application.Service{
 			application.NewService(app.NewInfoService()),
 			application.NewService(b.lib),
@@ -129,4 +130,18 @@ func runWrapper(args []string) int {
 
 func notify(summary, body string) {
 	_ = exec.Command("notify-send", "--app-name="+app.Name, summary, body).Run()
+}
+
+// migrateDataDir moves data kept under the app's working title to its final
+// name, so existing profiles survive the rename.
+func migrateDataDir(old, current string) {
+	if _, err := os.Stat(current); err == nil {
+		return
+	}
+	if _, err := os.Stat(old); err != nil {
+		return
+	}
+	if err := os.Rename(old, current); err != nil {
+		log.Printf("move %s to %s: %v", old, current, err)
+	}
 }

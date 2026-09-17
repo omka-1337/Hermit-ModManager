@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bepinexmodmanager/internal/steam"
+	"hermit/internal/steam"
 )
 
 // IconService provides game icons as data URLs, so the webview can show local

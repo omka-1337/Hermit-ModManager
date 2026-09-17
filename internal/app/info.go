@@ -4,12 +4,12 @@ package app
 import "runtime"
 
 const (
-	Name = "BepInEx Mod Manager"
+	Name = "Hermit"
 	// ID is used for on-disk directories (e.g. ~/.local/share/<ID>).
-	ID = "bepinexmodmanager"
+	ID = "hermit"
 )
 
-// Version is overridden at build time via -ldflags "-X bepinexmodmanager/internal/app.Version=...".
+// Version is overridden at build time via -ldflags "-X hermit/internal/app.Version=...".
 var Version = "0.1.0-dev"
 
 type AppInfo struct {

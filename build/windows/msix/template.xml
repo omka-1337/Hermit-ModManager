@@ -8,13 +8,13 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="bepinexmodmanager"
+        Path="hermit"
         Arguments=""
-        InstallLocation="C:\Program Files\Stanislav Lisenko\BepInEx Mod Manager">
+        InstallLocation="C:\Program Files\Stanislav Lisenko\Hermit">
     </Installer>
     <PackageInformation
-        PackageName="BepInEx Mod Manager"
-        PackageDisplayName="BepInEx Mod Manager"
+        PackageName="Hermit"
+        PackageDisplayName="Hermit"
         PublisherName="CN=Stanislav Lisenko"
         PublisherDisplayName="Stanislav Lisenko"
         Version="0.1.0.0"
@@ -25,10 +25,10 @@
         </Capabilities>
         <Applications>
             <Application
-                Id="com.stanislav.bepinexmodmanager"
+                Id="com.stanislav.hermit"
                 Description="Mod manager for BepInEx games"
-                DisplayName="BepInEx Mod Manager"
-                ExecutableName="bepinexmodmanager"
+                DisplayName="Hermit"
+                ExecutableName="hermit"
                 EntryPoint="Windows.FullTrustApplication">
                 
             </Application>
@@ -41,13 +41,13 @@
         </Dependencies>
         <Properties>
             <Framework>false</Framework>
-            <DisplayName>BepInEx Mod Manager</DisplayName>
+            <DisplayName>Hermit</DisplayName>
             <PublisherDisplayName>Stanislav Lisenko</PublisherDisplayName>
             <Description>Mod manager for BepInEx games</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>
-    <SaveLocation PackagePath="bepinexmodmanager.msix" />
+    <SaveLocation PackagePath="hermit.msix" />
     <PackageIntegrity>
         <CertificatePath></CertificatePath>
     </PackageIntegrity>

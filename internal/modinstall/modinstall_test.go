@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/thunderstore"
 )
 
 func makeZip(t *testing.T, dir string, files map[string]string) string {

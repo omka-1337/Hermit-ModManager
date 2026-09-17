@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/modinstall"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/modinstall"
+	"hermit/internal/thunderstore"
 )
 
 type fakeRepo struct {

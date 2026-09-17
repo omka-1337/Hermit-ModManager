@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/modinstall"
+	"hermit/internal/library"
+	"hermit/internal/modinstall"
 )
 
 // Wrapper runs a game command (Steam's %command%) with the active profile of
@@ -43,7 +43,7 @@ func (w *Wrapper) Run(args []string) int {
 	logOut := io.Writer(os.Stderr)
 	plan := launchPlan{command: command, env: os.Environ()}
 	setupErr := w.setup(gameID, &plan, &logOut)
-	logger := log.New(logOut, "[bepinexmodmanager] ", log.LstdFlags)
+	logger := log.New(logOut, "[hermit] ", log.LstdFlags)
 	switch {
 	case setupErr != nil:
 		logger.Printf("launching without mods: %v", setupErr)

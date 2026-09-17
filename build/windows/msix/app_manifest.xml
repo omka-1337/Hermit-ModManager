@@ -8,13 +8,13 @@
   IgnorableNamespaces="uap3">
   
   <Identity 
-    Name="com.stanislav.bepinexmodmanager"
+    Name="com.stanislav.hermit"
     Publisher="CN=Stanislav Lisenko"
     Version="0.1.0.0" 
     ProcessorArchitecture="x64" />
   
   <Properties>
-    <DisplayName>BepInEx Mod Manager</DisplayName>
+    <DisplayName>Hermit</DisplayName>
     <PublisherDisplayName>Stanislav Lisenko</PublisherDisplayName>
     <Description>Mod manager for BepInEx games</Description>
     <Logo>Assets\StoreLogo.png</Logo>
@@ -29,9 +29,9 @@
   </Resources>
   
   <Applications>
-    <Application Id="com.stanislav.bepinexmodmanager" Executable="bepinexmodmanager" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="com.stanislav.hermit" Executable="hermit" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="BepInEx Mod Manager"
+        DisplayName="Hermit"
         Description="Mod manager for BepInEx games"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -41,7 +41,7 @@
       </uap:VisualElements>
       
       <Extensions>
-        <desktop:Extension Category="windows.fullTrustProcess" Executable="bepinexmodmanager" />
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="hermit" />
         
         
       </Extensions>

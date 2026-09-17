@@ -7,10 +7,10 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as modinstall$0 from "../../../../../bepinexmodmanager/internal/modinstall/models.js";
+import type * as modinstall$0 from "../../../../../hermit/internal/modinstall/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import type * as profileshare$0 from "../../../../../bepinexmodmanager/internal/profileshare/models.js";
+import type * as profileshare$0 from "../../../../../hermit/internal/profileshare/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {

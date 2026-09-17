@@ -5,13 +5,13 @@
 !include "FileFunc.nsh"
 
 !ifndef INFO_PROJECTNAME
-    !define INFO_PROJECTNAME "bepinexmodmanager"
+    !define INFO_PROJECTNAME "hermit"
 !endif
 !ifndef INFO_COMPANYNAME
     !define INFO_COMPANYNAME "Stanislav Lisenko"
 !endif
 !ifndef INFO_PRODUCTNAME
-    !define INFO_PRODUCTNAME "BepInEx Mod Manager"
+    !define INFO_PRODUCTNAME "Hermit"
 !endif
 !ifndef INFO_PRODUCTVERSION
     !define INFO_PRODUCTVERSION "0.1.0"

@@ -23,8 +23,8 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"bepinexmodmanager/internal/library"
-	"bepinexmodmanager/internal/thunderstore"
+	"hermit/internal/library"
+	"hermit/internal/thunderstore"
 )
 
 const manifestName = "export.r2x"

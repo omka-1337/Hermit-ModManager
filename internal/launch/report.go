@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"bepinexmodmanager/internal/library"
+	"hermit/internal/library"
 )
 
 type IssueKind string
