@@ -5,7 +5,6 @@ import (
 	"embed"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/adrg/xdg"
@@ -135,7 +134,7 @@ func runWrapper(args []string) int {
 }
 
 func notify(summary, body string) {
-	_ = exec.Command("notify-send", "--app-name="+app.Name, summary, body).Run()
+	_ = platform.Command("notify-send", "--app-name="+app.Name, summary, body).Run()
 }
 
 // migrateDataDir moves data kept under the app's working title to its final

@@ -55,6 +55,11 @@ DEPLOY_GTK_VERSION=4 NO_STRIP=1 ./linuxdeploy --appdir "$APPDIR" \
   --plugin gtk
 
 echo "==> Patching WebKit helper paths"
+# linuxdeploy points the helpers at their own directory; their libraries are
+# in usr/lib, two and three levels up.
+patchelf --set-rpath '$ORIGIN/../..' "$APPDIR$WEBKIT_DIR/WebKitWebProcess" "$APPDIR$WEBKIT_DIR/WebKitNetworkProcess"
+patchelf --set-rpath '$ORIGIN/../../..' "$APPDIR$WEBKIT_DIR/injected-bundle/libwebkitgtkinjectedbundle.so"
+
 # "/usr/lib/..." becomes "././/lib/...": same length, resolved from $APPDIR/usr,
 # which the last AppRun hook makes the working directory.
 LIBWEBKIT="$(find "$APPDIR/usr/lib" -name 'libwebkitgtk-6.0.so*' -type f | head -n1)"
@@ -64,7 +69,10 @@ grep -q -a "././${WEBKIT_DIR#/usr}" "$LIBWEBKIT"
 
 # Hooks run in name order: save the untouched environment first (the launch
 # wrapper hands it to games), and finish in the AppDir with GTK's own backend
-# choice restored (the GTK plugin forces X11).
+# choice restored (the GTK plugin forces X11). WebKit's bubblewrap sandbox
+# cannot bind the helpers' relative paths inside the read-only image and
+# aborts, so it is turned off; the webview only shows Hermit's own UI and
+# Thunderstore package pages.
 cat > "$APPDIR/apprun-hooks/00-hermit-environment.sh" <<'HOOK'
 export HERMIT_ORIGINAL_ENV="$(env -0 | base64 -w0)"
 if [ "${GDK_BACKEND+set}" = set ]; then export HERMIT_GDK_BACKEND="$GDK_BACKEND"; fi
@@ -72,6 +80,7 @@ HOOK
 cat > "$APPDIR/apprun-hooks/zz-hermit-workdir.sh" <<'HOOK'
 if [ "${HERMIT_GDK_BACKEND+set}" = set ]; then export GDK_BACKEND="$HERMIT_GDK_BACKEND"; else unset GDK_BACKEND; fi
 unset HERMIT_GDK_BACKEND GTK_THEME
+export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
 cd "$APPDIR/usr"
 HOOK
 

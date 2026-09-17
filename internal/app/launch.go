@@ -3,12 +3,12 @@ package app
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"hermit/internal/launch"
 	"hermit/internal/library"
+	"hermit/internal/platform"
 	"hermit/internal/steam"
 )
 
@@ -81,7 +81,7 @@ func (s *LaunchService) Play(gameID, profileID string) error {
 	if err != nil {
 		return err
 	}
-	return exec.Command("xdg-open", "steam://rungameid/"+game.SteamAppID).Start()
+	return platform.Command("xdg-open", "steam://rungameid/"+game.SteamAppID).Start()
 }
 
 // RecommendedLaunchOptions is the Steam Launch Options value that runs games

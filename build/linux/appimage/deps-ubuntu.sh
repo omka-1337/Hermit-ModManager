@@ -11,7 +11,7 @@ SUDO=""
 export DEBIAN_FRONTEND=noninteractive
 $SUDO apt-get update
 $SUDO apt-get install -y --no-install-recommends \
-  ca-certificates curl wget file xz-utils git build-essential pkg-config \
+  ca-certificates curl wget file xz-utils git build-essential pkg-config patchelf \
   libgtk-4-dev libwebkitgtk-6.0-dev librsvg2-common desktop-file-utils
 
 if ! command -v go >/dev/null || ! go version | grep -q "go${GO_VERSION}"; then

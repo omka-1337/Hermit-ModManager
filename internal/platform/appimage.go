@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"os"
+	"os/exec"
 )
 
 // originalEnvVar is set by Hermit's first AppRun hook in the AppImage to the
@@ -40,4 +41,12 @@ func OriginalWorkingDir() string {
 	}
 	dir, _ := os.Getwd()
 	return dir
+}
+
+// Command prepares an external program (xdg-open, notify-send, ...) with the
+// original environment, so it does not load the AppImage's bundled libraries.
+func Command(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	cmd.Env = OriginalEnv()
+	return cmd
 }
