@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Backend, Runtime } from "../api";
 import { useLayout } from "../uimode";
 
@@ -107,8 +107,33 @@ const deckModalSizes = {
   xl: "flex h-full max-w-none flex-1 flex-col",
 };
 
+// Open dialogs are counted so controller navigation behind them can pause.
+let openModals = 0;
+const modalListeners = new Set<(open: boolean) => void>();
+
+// useModalOpen reports whether any dialog is currently on screen.
+export function useModalOpen(): boolean {
+  const [open, setOpen] = useState(openModals > 0);
+  useEffect(() => {
+    modalListeners.add(setOpen);
+    setOpen(openModals > 0);
+    return () => void modalListeners.delete(setOpen);
+  }, []);
+  return open;
+}
+
 export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
   const sizes = useLayout() === "deck" ? deckModalSizes : modalSizes;
+
+  useEffect(() => {
+    openModals++;
+    modalListeners.forEach((notify) => notify(true));
+    return () => {
+      openModals--;
+      modalListeners.forEach((notify) => notify(openModals > 0));
+    };
+  }, []);
+
   return (
     <div
       className={`fixed inset-0 z-10 flex items-center justify-center bg-black/60 ${sizes === deckModalSizes ? "p-3" : "p-6"}`}
