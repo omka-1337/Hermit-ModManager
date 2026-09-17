@@ -17,6 +17,27 @@ body,
   font-size: 19px;
 }
 
+/* Touch input: fingers need room, and taps should act at once instead of
+   waiting to see whether a double tap follows. Switches keep their own size. */
+:root[data-layout="deck"] button:not([role="switch"]),
+:root[data-layout="deck"] select,
+:root[data-layout="deck"] input {
+  min-height: 2.25rem;
+}
+
+:root[data-layout="deck"] button,
+:root[data-layout="deck"] select,
+:root[data-layout="deck"] input,
+:root[data-layout="deck"] label {
+  touch-action: manipulation;
+}
+
+/* A scrolled list should not drag the page behind it once it hits the end. */
+.overflow-y-auto,
+.overflow-auto {
+  overscroll-behavior: contain;
+}
+
 body {
   @apply bg-zinc-950 text-zinc-100 antialiased select-none;
   font-family: system-ui, sans-serif;

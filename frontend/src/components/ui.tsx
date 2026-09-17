@@ -55,6 +55,8 @@ type ToggleProps = {
 };
 
 export function Toggle({ checked, disabled, title, onChange }: ToggleProps) {
+  // A finger needs a bigger switch than a mouse pointer.
+  const deck = useLayout() === "deck";
   return (
     <button
       type="button"
@@ -63,14 +65,14 @@ export function Toggle({ checked, disabled, title, onChange }: ToggleProps) {
       title={title}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-        checked ? "bg-indigo-600" : "bg-zinc-700"
-      }`}
+      className={`relative shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        deck ? "h-7 w-12" : "h-5 w-9"
+      } ${checked ? "bg-indigo-600" : "bg-zinc-700"}`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-          checked ? "translate-x-4" : ""
-        }`}
+        className={`absolute rounded-full bg-white transition-transform ${
+          deck ? "top-1 left-1 h-5 w-5" : "top-0.5 left-0.5 h-4 w-4"
+        } ${checked ? (deck ? "translate-x-5" : "translate-x-4") : ""}`}
       />
     </button>
   );

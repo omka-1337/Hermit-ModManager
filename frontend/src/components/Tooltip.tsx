@@ -1,4 +1,5 @@
 import { ReactNode, useState } from "react";
+import { useLayout } from "../uimode";
 
 type Props = {
   label: string;
@@ -9,6 +10,11 @@ type Props = {
 // positioned fixed so scrolling containers do not clip it.
 export default function Tooltip({ label, children }: Props) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Hover does not exist on a touch screen, so labels are shown inline there.
+  if (useLayout() === "deck") {
+    return <>{children}</>;
+  }
 
   return (
     <div
