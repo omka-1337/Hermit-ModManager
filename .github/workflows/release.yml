@@ -25,5 +25,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/Hermit-*.AppImage \
-            --draft --verify-tag --generate-notes \
-            --title "Hermit ${GITHUB_REF_NAME#v}"
+            --draft --verify-tag --notes "" \
+            --title "${GITHUB_REF_NAME#v}"
