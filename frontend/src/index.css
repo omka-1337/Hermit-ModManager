@@ -10,3 +10,24 @@ body {
   @apply bg-zinc-950 text-zinc-100 antialiased select-none;
   font-family: system-ui, sans-serif;
 }
+
+.markdown {
+  @apply text-sm leading-relaxed text-zinc-300 select-text;
+}
+.markdown h1 { @apply mt-5 mb-2 text-xl font-semibold text-zinc-100; }
+.markdown h2 { @apply mt-5 mb-2 text-lg font-semibold text-zinc-100; }
+.markdown h3,
+.markdown h4 { @apply mt-4 mb-2 font-semibold text-zinc-100; }
+.markdown p { @apply my-2; }
+.markdown a { @apply text-indigo-400 hover:underline; }
+.markdown ul { @apply my-2 list-disc pl-5; }
+.markdown ol { @apply my-2 list-decimal pl-5; }
+.markdown code { @apply rounded bg-zinc-800 px-1 py-0.5 text-xs; }
+.markdown pre { @apply my-3 overflow-x-auto rounded-md bg-zinc-800 p-3; }
+.markdown pre code { @apply bg-transparent p-0; }
+.markdown img { @apply inline-block max-w-full; }
+.markdown blockquote { @apply my-2 border-l-2 border-zinc-700 pl-3 text-zinc-400; }
+.markdown table { @apply my-3 border-collapse text-xs; }
+.markdown th,
+.markdown td { @apply border border-zinc-700 px-2 py-1; }
+.markdown hr { @apply my-4 border-zinc-800; }

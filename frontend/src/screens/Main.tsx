@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AppInfo, Game, InfoService } from "../api";
 import GamePicker from "../components/GamePicker";
 import GameView from "../components/GameView";
+import ProfileView from "../components/profile/ProfileView";
 import { Button, Modal } from "../components/ui";
 
 type Props = {
@@ -14,6 +15,7 @@ type Props = {
 export default function Main({ games, selectedId, onSelect, onGamesChanged }: Props) {
   const [adding, setAdding] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [openProfile, setOpenProfile] = useState<{ gameId: string; profileId: string } | null>(null);
   const selected = games.find((g) => g.id === selectedId) ?? null;
 
   useEffect(() => {
@@ -29,7 +31,10 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
           {games.map((g) => (
             <button
               key={g.id}
-              onClick={() => onSelect(g.id)}
+              onClick={() => {
+                setOpenProfile(null);
+                onSelect(g.id);
+              }}
               className={`truncate rounded-md px-3 py-2 text-left text-sm ${
                 g.id === selectedId ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/60"
               }`}
@@ -48,13 +53,21 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto p-8">
-        {selected ? (
+      <main className="min-w-0 flex-1 overflow-auto">
+        {selected && openProfile?.gameId === selected.id ? (
+          <ProfileView
+            key={openProfile.profileId}
+            game={selected}
+            profileId={openProfile.profileId}
+            onBack={() => setOpenProfile(null)}
+          />
+        ) : selected ? (
           <GameView
             key={selected.id}
             game={selected}
             onChanged={(g) => onGamesChanged(g.id)}
             onRemoved={() => onGamesChanged(null)}
+            onOpenProfile={(profileId) => setOpenProfile({ gameId: selected.id, profileId })}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">

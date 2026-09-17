@@ -7,9 +7,10 @@ type Props = {
   game: Game;
   onChanged: (game: Game) => void;
   onRemoved: () => void;
+  onOpenProfile: (profileId: string) => void;
 };
 
-export default function GameView({ game, onChanged, onRemoved }: Props) {
+export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: Props) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [newProfile, setNewProfile] = useState("");
   const [error, setError] = useState("");
@@ -67,7 +68,7 @@ export default function GameView({ game, onChanged, onRemoved }: Props) {
     });
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
       <header className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <EditableName
@@ -109,6 +110,9 @@ export default function GameView({ game, onChanged, onRemoved }: Props) {
                 <span className="text-xs text-zinc-500">
                   {modCount} {modCount === 1 ? "mod" : "mods"}
                 </span>
+                <Button variant="secondary" onClick={() => onOpenProfile(p.id)}>
+                  Open
+                </Button>
                 {active ? (
                   <span className="w-24 text-center text-xs font-medium text-indigo-400">Active</span>
                 ) : (

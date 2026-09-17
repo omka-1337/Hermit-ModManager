@@ -12,6 +12,7 @@ import (
 	"bepinexmodmanager/internal/library"
 	"bepinexmodmanager/internal/settings"
 	"bepinexmodmanager/internal/steam"
+	"bepinexmodmanager/internal/thunderstore"
 )
 
 //go:embed all:frontend/dist
@@ -24,6 +25,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	ts := thunderstore.NewClient(
+		thunderstore.DefaultBaseURL,
+		app.ID+"/"+app.Version,
+		filepath.Join(root, "cache", "thunderstore"),
+	)
+
 	wailsApp := application.New(application.Options{
 		Name:        app.Name,
 		Description: "Mod manager for BepInEx games",
@@ -31,6 +38,7 @@ func main() {
 			application.NewService(app.NewInfoService()),
 			application.NewService(lib),
 			application.NewService(settings.NewStore(root)),
+			application.NewService(app.NewBrowseService(lib, ts)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
