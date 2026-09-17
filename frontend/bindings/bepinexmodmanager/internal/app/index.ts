@@ -4,12 +4,15 @@
 import * as BrowseService from "./browseservice.js";
 import * as InfoService from "./infoservice.js";
 import * as InstallService from "./installservice.js";
+import * as LaunchService from "./launchservice.js";
 export {
     BrowseService,
     InfoService,
-    InstallService
+    InstallService,
+    LaunchService
 };
 
 export type {
-    AppInfo
+    AppInfo,
+    LaunchInfo
 } from "./models.js";

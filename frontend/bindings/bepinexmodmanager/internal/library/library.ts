@@ -28,6 +28,20 @@ export function DiscoverGames(): $CancellablePromise<$models.GameCandidate[] | n
     return $Call.ByID(2648490954);
 }
 
+/**
+ * FindGameBySteamAppID returns the added game with the given Steam app id.
+ */
+export function FindGameBySteamAppID(appID: string): $CancellablePromise<$models.Game> {
+    return $Call.ByID(241843278, appID);
+}
+
+/**
+ * GameDataDir returns the manager's data directory of an existing game.
+ */
+export function GameDataDir(id: string): $CancellablePromise<string> {
+    return $Call.ByID(576302353, id);
+}
+
 export function GetGame(id: string): $CancellablePromise<$models.Game> {
     return $Call.ByID(2697987102, id);
 }
@@ -85,6 +99,13 @@ export function RenameGame(id: string, name: string): $CancellablePromise<$model
 
 export function RenameProfile(gameID: string, profileID: string, name: string): $CancellablePromise<$models.Profile> {
     return $Call.ByID(3446026439, gameID, profileID, name);
+}
+
+/**
+ * Root is the library root directory.
+ */
+export function Root(): $CancellablePromise<string> {
+    return $Call.ByID(1146206816);
 }
 
 export function SetActiveProfile(gameID: string, profileID: string): $CancellablePromise<$models.Game> {

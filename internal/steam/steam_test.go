@@ -98,3 +98,21 @@ func TestInstalledAppsAcrossLibraries(t *testing.T) {
 		t.Errorf("old format libraries: %v", libs)
 	}
 }
+
+func TestLaunchOptions(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, "userdata", "123", "config", "localconfig.vdf"), `"UserLocalConfigStore"
+{
+	"Software" { "Valve" { "Steam" { "apps" {
+		"1966720" { "LaunchOptions" "\"/opt/bmm\" run -- %command%" }
+		"10" { "LastPlayed" "1" }
+	} } } }
+}`)
+	got := LaunchOptions([]string{root}, "1966720")
+	if len(got) != 1 || got[0] != `"/opt/bmm" run -- %command%` {
+		t.Errorf("got %q", got)
+	}
+	if got := LaunchOptions([]string{root}, "10"); len(got) != 0 {
+		t.Errorf("app without options: %q", got)
+	}
+}

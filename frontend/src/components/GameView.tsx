@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { confirmDanger, errorMessage, Game, Library, Profile } from "../api";
 import EditableName from "./EditableName";
+import { LaunchSetup, PlayButton } from "./launch";
 import { BackendBadge, Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
 
 type Props = {
@@ -82,12 +83,20 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
             <span className="truncate select-text">{game.path}</span>
           </div>
         </div>
-        <Button variant="danger" onClick={removeGame}>
-          Remove game
-        </Button>
+        <div className="flex items-start gap-2">
+          <Button variant="danger" onClick={removeGame}>
+            Remove game
+          </Button>
+          <PlayButton game={game} profileId={game.activeProfile} onPlayed={refreshGame} />
+        </div>
       </header>
 
       <ErrorText>{error}</ErrorText>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold tracking-wide text-zinc-400 uppercase">Launch</h2>
+        <LaunchSetup game={game} />
+      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold tracking-wide text-zinc-400 uppercase">Profiles</h2>

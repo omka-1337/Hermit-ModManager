@@ -83,6 +83,37 @@ func (l *Library) ListGames() ([]Game, error) {
 	return games, nil
 }
 
+// GameDataDir returns the manager's data directory of an existing game.
+func (l *Library) GameDataDir(id string) (string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, err := l.loadGame(id); err != nil {
+		return "", err
+	}
+	return l.gameDir(id), nil
+}
+
+// FindGameBySteamAppID returns the added game with the given Steam app id.
+func (l *Library) FindGameBySteamAppID(appID string) (Game, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	ids, err := listDirs(l.gamesDir())
+	if err != nil {
+		return Game{}, err
+	}
+	for _, id := range ids {
+		if g, err := l.loadGame(id); err == nil && appID != "" && g.SteamAppID == appID {
+			return g, nil
+		}
+	}
+	return Game{}, fmt.Errorf("steam app %s: %w", appID, ErrNotFound)
+}
+
+// Root is the library root directory.
+func (l *Library) Root() string { return l.root }
+
 func (l *Library) GetGame(id string) (Game, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

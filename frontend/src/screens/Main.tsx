@@ -75,6 +75,7 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
             game={selected}
             profileId={openProfile.profileId}
             onBack={() => setOpenProfile(null)}
+            onGameChanged={() => onGamesChanged(selected.id)}
           />
         ) : selected ? (
           <GameView

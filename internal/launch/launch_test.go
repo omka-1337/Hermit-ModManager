@@ -1,0 +1,154 @@
+package launch
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	"bepinexmodmanager/internal/library"
+	"bepinexmodmanager/internal/modinstall"
+)
+
+func mkfile(t *testing.T, path string) {
+	t.Helper()
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLinkProfile(t *testing.T) {
+	root := t.TempDir()
+	dataRoot := filepath.Join(root, "data")
+	profile := filepath.Join(dataRoot, "games/g/profiles/default")
+	game := filepath.Join(root, "game")
+	mkfile(t, filepath.Join(profile, "BepInEx/core/BepInEx.dll"))
+	mkfile(t, filepath.Join(profile, "winhttp.dll"))
+	mkfile(t, filepath.Join(profile, "doorstop_config.ini"))
+	mkfile(t, filepath.Join(profile, "profile.json"))
+	mkfile(t, filepath.Join(profile, "disabled/x/y.dll"))
+	mkfile(t, filepath.Join(game, "Game.exe"))
+
+	links, err := LinkProfile(game, profile, dataRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(links, []string{"BepInEx", "doorstop_config.ini", "winhttp.dll"}) {
+		t.Fatalf("links: %v", links)
+	}
+	if _, err := os.Stat(filepath.Join(game, "BepInEx/core/BepInEx.dll")); err != nil {
+		t.Error("BepInEx not reachable through link")
+	}
+
+	// Stale links from a crashed session are replaced.
+	if _, err := LinkProfile(game, profile, dataRoot); err != nil {
+		t.Errorf("relink: %v", err)
+	}
+
+	if err := Unlink(game, links, dataRoot); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(game)
+	if len(entries) != 1 {
+		t.Errorf("game dir not clean: %v", entries)
+	}
+	if _, err := os.Stat(filepath.Join(profile, "winhttp.dll")); err != nil {
+		t.Error("unlink removed profile files")
+	}
+}
+
+func TestLinkProfileConflictsAndVanilla(t *testing.T) {
+	root := t.TempDir()
+	dataRoot := filepath.Join(root, "data")
+	profile := filepath.Join(dataRoot, "p")
+	game := filepath.Join(root, "game")
+	mkfile(t, filepath.Join(profile, "BepInEx/plugins/a.dll"))
+
+	// No active loader: nothing is linked.
+	if links, err := LinkProfile(game, profile, dataRoot); err != nil || len(links) != 0 {
+		t.Fatalf("vanilla: %v %v", links, err)
+	}
+
+	mkfile(t, filepath.Join(profile, "winhttp.dll"))
+	mkfile(t, filepath.Join(game, "BepInEx/manual.dll")) // manual BepInEx install
+	_, err := LinkProfile(game, profile, dataRoot)
+	if !errors.Is(err, ErrConflict) || !strings.Contains(err.Error(), "BepInEx") {
+		t.Fatalf("conflict: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(game, "winhttp.dll")); err == nil {
+		t.Error("nothing must be linked on conflict")
+	}
+	// Unlink never removes real files.
+	Unlink(game, []string{"BepInEx"}, dataRoot)
+	if _, err := os.Stat(filepath.Join(game, "BepInEx/manual.dll")); err != nil {
+		t.Error("real files removed")
+	}
+}
+
+func TestWithDLLOverride(t *testing.T) {
+	cases := map[string]string{
+		"":                                "WINEDLLOVERRIDES=winhttp=n,b",
+		"WINEDLLOVERRIDES=d3d11=n":        "WINEDLLOVERRIDES=d3d11=n;winhttp=n,b",
+		"WINEDLLOVERRIDES=winhttp=b":      "WINEDLLOVERRIDES=winhttp=b",
+		"WINEDLLOVERRIDES=dxgi,WinHTTP=n": "WINEDLLOVERRIDES=dxgi,WinHTTP=n",
+	}
+	for in, want := range cases {
+		env := []string{"HOME=/h"}
+		if in != "" {
+			env = append(env, in)
+		}
+		got := withDLLOverride(env, "winhttp", "n,b")
+		if got[len(got)-1] != want {
+			t.Errorf("%q: got %q", in, got[len(got)-1])
+		}
+	}
+}
+
+func TestWrapperRun(t *testing.T) {
+	tmp := t.TempDir()
+	lib, _ := library.New(filepath.Join(tmp, "lib"), nil)
+	gamePath := filepath.Join(tmp, "game")
+	mkfile(t, filepath.Join(gamePath, "UnityPlayer.dll"))
+	mkfile(t, filepath.Join(gamePath, "Game.exe"))
+	os.MkdirAll(filepath.Join(gamePath, "Game_Data/Managed"), 0o755)
+	game, err := lib.AddGame("Game", gamePath)
+	if err != nil || game.Runtime != library.RuntimeProton {
+		t.Fatalf("add game: %+v %v", game, err)
+	}
+	profileDir, _ := lib.ProfileDir(game.ID, game.ActiveProfile)
+	mkfile(t, filepath.Join(profileDir, "winhttp.dll"))
+	mkfile(t, filepath.Join(profileDir, "doorstop_config.ini"))
+
+	// The "game" records what it sees: links in place and the DLL override.
+	report := filepath.Join(tmp, "report")
+	script := `test -L winhttp.dll && echo linked >> ` + report + `; echo "$WINEDLLOVERRIDES" >> ` + report + `; exit 3`
+	w := &Wrapper{Lib: lib, Installer: modinstall.NewInstaller(lib, nil)}
+	var notified string
+	w.Notify = func(s, b string) { notified = s + ": " + b }
+
+	t.Chdir(gamePath)
+	code := w.Run([]string{"--game", game.ID, "--", "sh", "-c", script})
+	if code != 3 {
+		t.Errorf("exit code %d", code)
+	}
+	data, _ := os.ReadFile(report)
+	if string(data) != "linked\nwinhttp=n,b\n" || notified != "" {
+		t.Errorf("game saw %q, notified %q", data, notified)
+	}
+	if _, err := os.Lstat(filepath.Join(gamePath, "winhttp.dll")); err == nil {
+		t.Error("links not cleaned up")
+	}
+	dataDir, _ := lib.GameDataDir(game.ID)
+	if s, _ := ReadSession(dataDir); s != nil {
+		t.Error("session not removed")
+	}
+
+	// Unknown game: the command still runs, without mods, and the user is told.
+	t.Setenv("SteamAppId", "999")
+	if code := w.Run([]string{"--", "true"}); code != 0 || notified == "" {
+		t.Errorf("unknown game: code %d notified %q", code, notified)
+	}
+}

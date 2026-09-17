@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage, Game, InstallService, Profile } from "../../api";
+import { PlayButton } from "../launch";
 import { Button, ErrorText } from "../ui";
 import BrowseTab from "./BrowseTab";
 import InstalledTab from "./InstalledTab";
@@ -11,9 +12,10 @@ type Props = {
   game: Game;
   profileId: string;
   onBack: () => void;
+  onGameChanged: () => void;
 };
 
-export default function ProfileView({ game, profileId, onBack }: Props) {
+export default function ProfileView({ game, profileId, onBack, onGameChanged }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState<Tab>("installed");
   const [error, setError] = useState("");
@@ -55,9 +57,12 @@ export default function ProfileView({ game, profileId, onBack }: Props) {
             </button>
           ))}
         </nav>
-        {game.activeProfile === profileId && (
-          <span className="ml-auto self-center pb-3 text-xs font-medium text-indigo-400">Active profile</span>
-        )}
+        <div className="ml-auto flex items-center gap-3 self-center pb-3">
+          {game.activeProfile === profileId && (
+            <span className="text-xs font-medium text-indigo-400">Active profile</span>
+          )}
+          <PlayButton game={game} profileId={profileId} onPlayed={onGameChanged} />
+        </div>
       </header>
 
       <div className="min-h-0 flex-1">

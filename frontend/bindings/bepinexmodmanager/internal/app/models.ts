@@ -7,3 +7,29 @@ export interface AppInfo {
     "os": string;
     "arch": string;
 }
+
+export interface LaunchInfo {
+    /**
+     * Supported is false when the manager cannot launch the game with mods;
+     * Reason explains why.
+     */
+    "supported": boolean;
+    "reason": string;
+
+    /**
+     * LaunchOptions is the value to put into the game's Steam Launch Options.
+     */
+    "launchOptions": string;
+
+    /**
+     * Configured reports whether Steam's saved config has these launch options.
+     * Steam writes its config lazily, so false may just mean "not saved yet".
+     */
+    "configured": boolean;
+    "running": boolean;
+
+    /**
+     * RunningProfile is the profile of the running session, if any.
+     */
+    "runningProfile": string;
+}

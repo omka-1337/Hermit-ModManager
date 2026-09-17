@@ -4,7 +4,8 @@ export { Backend, Library, Runtime } from "../bindings/bepinexmodmanager/interna
 export type { Game, GameCandidate, Mod, Profile } from "../bindings/bepinexmodmanager/internal/library";
 export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/settings";
 export type { Settings } from "../bindings/bepinexmodmanager/internal/settings";
-export { BrowseService, InfoService, InstallService } from "../bindings/bepinexmodmanager/internal/app";
+export { BrowseService, InfoService, InstallService, LaunchService } from "../bindings/bepinexmodmanager/internal/app";
+export type { LaunchInfo } from "../bindings/bepinexmodmanager/internal/app";
 export { Stage } from "../bindings/bepinexmodmanager/internal/modinstall";
 export type { Progress } from "../bindings/bepinexmodmanager/internal/modinstall";
 export { Ordering } from "../bindings/bepinexmodmanager/internal/thunderstore";
@@ -32,6 +33,16 @@ export async function confirmDanger(title: string, message: string, action: stri
     Title: title,
     Message: message,
     Buttons: [{ Label: action }, { Label: "Cancel", IsCancel: true, IsDefault: true }],
+  });
+  return answer === action;
+}
+
+// confirm asks a yes/no question; resolves true if the action button was chosen.
+export async function confirm(title: string, message: string, action: string): Promise<boolean> {
+  const answer = await Dialogs.Question({
+    Title: title,
+    Message: message,
+    Buttons: [{ Label: action, IsDefault: true }, { Label: "Cancel", IsCancel: true }],
   });
   return answer === action;
 }
