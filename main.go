@@ -88,6 +88,10 @@ func main() {
 		log.Fatal(err)
 	}
 	settingsStore := settings.NewStore(b.root)
+	stored, err := settingsStore.Get()
+	if err != nil {
+		log.Printf("settings: %v", err)
+	}
 
 	wailsApp := application.New(application.Options{
 		Name:        app.Name,
@@ -110,7 +114,7 @@ func main() {
 		},
 	})
 
-	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+	windowOptions := application.WebviewWindowOptions{
 		Title: app.Name,
 		// The frontend draws its own title bar and window controls.
 		Frameless: true,
@@ -122,7 +126,14 @@ func main() {
 		MinHeight:        560,
 		BackgroundColour: application.NewRGB(15, 17, 23),
 		URL:              "/",
-	})
+	}
+	if deckLayout(stored.UIMode) {
+		// The Steam Deck screen is 1280x800; fill it and allow smaller windows.
+		windowOptions.Width, windowOptions.Height = 1280, 800
+		windowOptions.MinWidth, windowOptions.MinHeight = 800, 500
+		windowOptions.StartState = application.WindowStateMaximised
+	}
+	window := wailsApp.Window.NewWithOptions(windowOptions)
 
 	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		go showFramelessWindow(window)
@@ -130,6 +141,18 @@ func main() {
 
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// deckLayout reports whether to start with the Steam Deck sized window.
+func deckLayout(mode settings.UIMode) bool {
+	switch mode {
+	case settings.UIModeDeck:
+		return true
+	case settings.UIModeDesktop:
+		return false
+	default:
+		return platform.IsSteamDeck()
 	}
 }
 

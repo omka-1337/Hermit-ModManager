@@ -1,5 +1,6 @@
 import { CSSProperties, ReactNode, useEffect, useState } from "react";
 import { Window } from "@wailsio/runtime";
+import { useLayout } from "../uimode";
 
 // Wails starts a window drag from elements with this CSS variable (frameless windows).
 const drag = { "--wails-draggable": "drag" } as CSSProperties;
@@ -20,6 +21,8 @@ function useMaximised(): boolean {
 // controls and a thin border so the window edge stays visible on dark desktops.
 export default function WindowFrame({ children }: { children: ReactNode }) {
   const maximised = useMaximised();
+  // On the Deck the window is full screen anyway, so only Close is useful.
+  const deck = useLayout() === "deck";
 
   return (
     <div className={`flex h-full flex-col bg-zinc-950 ${maximised ? "" : "border border-zinc-700/70"}`}>
@@ -31,10 +34,10 @@ export default function WindowFrame({ children }: { children: ReactNode }) {
         <span className="px-4 text-xs font-medium text-zinc-400">Hermit</span>
         <div className="flex-1" />
         <div style={noDrag} className="flex h-full" onDoubleClick={(e) => e.stopPropagation()}>
-          <WindowButton label="Minimise" onClick={() => Window.Minimise()}>
+          <WindowButton label="Minimise" hidden={deck} onClick={() => Window.Minimise()}>
             <path d="M5 12h14" />
           </WindowButton>
-          <WindowButton label={maximised ? "Restore" : "Maximise"} onClick={() => Window.ToggleMaximise()}>
+          <WindowButton label={maximised ? "Restore" : "Maximise"} hidden={deck} onClick={() => Window.ToggleMaximise()}>
             {maximised ? (
               <>
                 <rect x="5" y="9" width="10" height="10" rx="1" />
@@ -57,11 +60,13 @@ export default function WindowFrame({ children }: { children: ReactNode }) {
 type ButtonProps = {
   label: string;
   danger?: boolean;
+  hidden?: boolean;
   onClick: () => void;
   children: ReactNode;
 };
 
-function WindowButton({ label, danger, onClick, children }: ButtonProps) {
+function WindowButton({ label, danger, hidden, onClick, children }: ButtonProps) {
+  if (hidden) return null;
   return (
     <button
       aria-label={label}

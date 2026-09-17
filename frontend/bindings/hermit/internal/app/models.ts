@@ -13,6 +13,12 @@ export interface AppInfo {
     "version": string;
     "os": string;
     "arch": string;
+
+    /**
+     * SteamDeck reports whether Hermit runs on a Steam Deck, which decides
+     * the interface layout when the UI mode is set to auto.
+     */
+    "steamDeck": boolean;
 }
 
 export interface ConfigContent {

@@ -6,6 +6,10 @@ export {
     Store
 };
 
+export {
+    UIMode
+} from "./models.js";
+
 export type {
     Settings
 } from "./models.js";

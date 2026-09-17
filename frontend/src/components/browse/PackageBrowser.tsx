@@ -14,6 +14,7 @@ import { formatAgo, formatCount } from "../../format";
 import { ErrorText, inputClass, NsfwBadge } from "../ui";
 import PackageDetails from "./PackageDetails";
 import PackageIcon from "./PackageIcon";
+import { useLayout } from "../../uimode";
 
 const orderings: { value: Ordering; label: string }[] = [
   { value: Ordering.OrderMostDownloaded, label: "Most downloaded" },
@@ -41,6 +42,7 @@ export function isModpack(pkg: { categories?: { slug: string }[] | null }): bool
 
 // PackageBrowser searches and pages through a game's Thunderstore packages.
 export default function PackageBrowser({ game, modpacksOnly, isInstalled, renderActions }: Props) {
+  const layout = useLayout();
   const [community, setCommunity] = useState<Community | null>(null);
   const [filters, setFilters] = useState<Filters | null>(null);
   const [fatal, setFatal] = useState("");
@@ -140,7 +142,7 @@ export default function PackageBrowser({ game, modpacksOnly, isInstalled, render
   const sections = [...(filters?.sections ?? [])].sort((a, b) => b.priority - a.priority);
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="relative flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-2 border-b border-zinc-800 px-6 py-3">
           <input
@@ -230,7 +232,13 @@ export default function PackageBrowser({ game, modpacksOnly, isInstalled, render
       </div>
 
       {selected && (
-        <aside className="w-[440px] shrink-0 border-l border-zinc-800 bg-zinc-900">
+        <aside
+          className={
+            layout === "deck"
+              ? "absolute inset-0 z-10 border-l border-zinc-800 bg-zinc-900"
+              : "w-[440px] shrink-0 border-l border-zinc-800 bg-zinc-900"
+          }
+        >
           <PackageDetails
             key={`${selected.namespace}-${selected.name}`}
             community={community.id}

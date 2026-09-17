@@ -11,6 +11,12 @@ body,
   color-scheme: dark;
 }
 
+/* The Steam Deck screen is 1280x800 on 7 inches, so everything is scaled up
+   through the root font size: Tailwind sizes and spacing are in rem. */
+:root[data-layout="deck"] {
+  font-size: 19px;
+}
+
 body {
   @apply bg-zinc-950 text-zinc-100 antialiased select-none;
   font-family: system-ui, sans-serif;

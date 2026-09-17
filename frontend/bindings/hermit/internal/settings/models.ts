@@ -11,4 +11,24 @@ export interface Settings {
      * AllowNSFW shows packages marked NSFW when browsing mods.
      */
     "allowNsfw": boolean;
+
+    /**
+     * UIMode is the interface layout; empty means auto.
+     */
+    "uiMode": UIMode;
 }
+
+/**
+ * UIMode selects the interface layout. Auto follows the hardware: the Steam
+ * Deck gets the deck layout, everything else the desktop one.
+ */
+export enum UIMode {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero = "",
+
+    UIModeAuto = "auto",
+    UIModeDesktop = "desktop",
+    UIModeDeck = "deck",
+};

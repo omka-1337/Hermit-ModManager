@@ -29,3 +29,23 @@ func TestUpdateKeepsSetupFlag(t *testing.T) {
 		t.Fatalf("after update: %+v", st)
 	}
 }
+
+func TestUIModeDefaultsToAuto(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(root)
+	if st, _ := store.Get(); st.UIMode != UIModeAuto {
+		t.Errorf("fresh settings: %q", st.UIMode)
+	}
+	if _, err := store.Update(Settings{UIMode: UIModeDeck}); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := NewStore(root).Get(); st.UIMode != UIModeDeck {
+		t.Errorf("stored mode: %q", st.UIMode)
+	}
+	if _, err := store.Update(Settings{UIMode: "nonsense"}); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := NewStore(root).Get(); st.UIMode != UIModeAuto {
+		t.Errorf("unknown mode should fall back to auto: %q", st.UIMode)
+	}
+}

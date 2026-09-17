@@ -1,7 +1,11 @@
 // Package app holds application-level metadata and services exposed to the frontend.
 package app
 
-import "runtime"
+import (
+	"runtime"
+
+	"hermit/internal/platform"
+)
 
 const (
 	Name = "Hermit"
@@ -17,6 +21,9 @@ type AppInfo struct {
 	Version string `json:"version"`
 	OS      string `json:"os"`
 	Arch    string `json:"arch"`
+	// SteamDeck reports whether Hermit runs on a Steam Deck, which decides
+	// the interface layout when the UI mode is set to auto.
+	SteamDeck bool `json:"steamDeck"`
 }
 
 type InfoService struct{}
@@ -27,9 +34,10 @@ func NewInfoService() *InfoService {
 
 func (s *InfoService) GetInfo() AppInfo {
 	return AppInfo{
-		Name:    Name,
-		Version: Version,
-		OS:      runtime.GOOS,
-		Arch:    runtime.GOARCH,
+		Name:      Name,
+		Version:   Version,
+		OS:        runtime.GOOS,
+		Arch:      runtime.GOARCH,
+		SteamDeck: platform.IsSteamDeck(),
 	}
 }

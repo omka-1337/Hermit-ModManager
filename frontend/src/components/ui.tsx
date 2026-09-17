@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Backend, Runtime } from "../api";
+import { useLayout } from "../uimode";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -97,11 +98,22 @@ const modalSizes = {
   xl: "flex h-[85vh] max-w-6xl flex-col",
 };
 
+// On the Deck's small screen dialogs use the whole window.
+const deckModalSizes = {
+  md: "max-w-xl",
+  lg: "max-w-3xl",
+  xl: "flex h-full max-w-none flex-1 flex-col",
+};
+
 export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
+  const sizes = useLayout() === "deck" ? deckModalSizes : modalSizes;
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-6" onMouseDown={onClose}>
+    <div
+      className={`fixed inset-0 z-10 flex items-center justify-center bg-black/60 ${sizes === deckModalSizes ? "p-3" : "p-6"}`}
+      onMouseDown={onClose}
+    >
       <div
-        className={`w-full ${modalSizes[size]} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
+        className={`w-full ${sizes[size]} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 className="mb-4 text-lg font-semibold">{title}</h2>
