@@ -9,7 +9,7 @@ import (
 
 func TestOriginalEnv(t *testing.T) {
 	t.Setenv("LD_LIBRARY_PATH", "/tmp/.mount_hermit/usr/lib")
-	original := strings.Join([]string{"HOME=/home/me", "SteamAppId=1966720", "WINEDLLOVERRIDES="}, "\x00") + "\x00"
+	original := strings.Join([]string{"HOME=/home/me", "APPDIR=/tmp/.mount_Hermit", "SteamAppId=1966720", "OWD=/games", "WINEDLLOVERRIDES="}, "\x00") + "\x00"
 	t.Setenv(originalEnvVar, base64.StdEncoding.EncodeToString([]byte(original)))
 
 	got := OriginalEnv()

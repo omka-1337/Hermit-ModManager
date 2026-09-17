@@ -25,11 +25,18 @@ func OriginalEnv() []string {
 	}
 	var env []string
 	for _, kv := range bytes.Split(data, []byte{0}) {
-		if len(kv) > 0 && !bytes.HasPrefix(kv, []byte(originalEnvVar+"=")) {
+		name, _, _ := bytes.Cut(kv, []byte("="))
+		if len(kv) > 0 && !appImageVars[string(name)] {
 			env = append(env, string(kv))
 		}
 	}
 	return env
+}
+
+// appImageVars are set by the AppImage runtime before AppRun runs; they
+// describe Hermit's image, not the environment of a game it launches.
+var appImageVars = map[string]bool{
+	originalEnvVar: true, "APPDIR": true, "APPIMAGE": true, "ARGV0": true, "OWD": true,
 }
 
 // OriginalWorkingDir is the directory Hermit was started from. The AppImage
