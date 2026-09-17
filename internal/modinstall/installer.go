@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"path"
 	"slices"
 	"strconv"
@@ -237,7 +238,7 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 					p.Mods = slices.Delete(p.Mods, i, i+1)
 				}
 			}
-			return errors.Join(append(errs, Sync(profileDir, p))...), nil
+			return errors.Join(append(errs, Sync(profileDir, p, rules))...), nil
 		})
 		if err != nil {
 			return library.Profile{}, err
@@ -304,10 +305,25 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 		installed[m.ID] = m.Version
 	}
 
+	installedLoader := slices.ContainsFunc(profile.Mods, func(m library.Mod) bool {
+		return rules.IsLoaderPackage(m.ID) || IsLoader(m.Files)
+	})
+
 	// target decides which version of a dependency to install; skip means the
-	// installed one is fine. It only reads immutable state, so it is safe to
-	// call from download goroutines.
+	// installed one is fine. It only reads state that no longer changes once
+	// downloads start, so it is safe to call from download goroutines.
 	target := func(r thunderstore.PackageRef) (thunderstore.PackageRef, bool) {
+		if _, pinned := opts.Pinned[r.ID()]; !pinned && rules.IsLoaderPackage(r.ID()) {
+			// Any BepInEx loader satisfies a dependency on one; keep the profile's.
+			if installedLoader && !slices.ContainsFunc(profile.Mods, func(m library.Mod) bool { return m.ID == r.ID() }) {
+				return r, true
+			}
+			for id := range opts.Pinned {
+				if rules.IsLoaderPackage(id) {
+					return r, true
+				}
+			}
+		}
 		if pinned, ok := opts.Pinned[r.ID()]; ok {
 			r.Version = pinned
 			return r, installed[r.ID()] == pinned
@@ -339,12 +355,16 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 
 	var plan []plannedPackage
 	planned := map[string]int{}
+	plannedLoader := ""
 	var visit func(r thunderstore.PackageRef, root bool) error
 	visit = func(r thunderstore.PackageRef, root bool) error {
 		if i, ok := planned[r.ID()]; ok {
 			if i < 0 || CompareVersions(plan[i].ref.Version, r.Version) >= 0 {
 				return nil // being resolved (cycle) or already planned at a sufficient version
 			}
+		}
+		if !root && plannedLoader != "" && plannedLoader != r.ID() && rules.IsLoaderPackage(r.ID()) {
+			return nil // another loader is already on its way
 		}
 		if !root {
 			var skip bool
@@ -357,6 +377,23 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 		if res.err != nil {
 			return res.err
 		}
+		if root && opts.Modpack {
+			// The versions a modpack lists win over what its mods' own
+			// manifests ask for, as when importing a profile. Set before any
+			// download goroutine reads opts.
+			pinned := maps.Clone(opts.Pinned)
+			if pinned == nil {
+				pinned = map[string]string{}
+			}
+			for _, dep := range res.manifest.Dependencies {
+				if d, err := thunderstore.ParseDependency(dep); err == nil {
+					if _, explicit := pinned[d.ID()]; !explicit {
+						pinned[d.ID()] = d.Version
+					}
+				}
+			}
+			opts.Pinned = pinned
+		}
 		prefetch(res.manifest.Dependencies)
 		for _, dep := range res.manifest.Dependencies {
 			depRef, err := thunderstore.ParseDependency(dep)
@@ -366,6 +403,9 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 			if err := visit(depRef, false); err != nil {
 				return err
 			}
+		}
+		if rules.IsLoaderPackage(r.ID()) || IsLoader(res.files) {
+			plannedLoader = r.ID()
 		}
 		plan = append(plan, plannedPackage{
 			ref: r, archive: res.archive, manifest: res.manifest, rules: rules, files: res.files,
@@ -684,14 +724,14 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 		files, err := Extract(p.archive.Path, profileDir, p.ref.ID(), p.rules, p.overwriteConfigs)
 		if err != nil {
 			// The old version is already gone, so the profile is saved without it.
-			return errors.Join(fmt.Errorf("install %s: %w", p.ref, err), Sync(profileDir, prof)), nil
+			return errors.Join(fmt.Errorf("install %s: %w", p.ref, err), Sync(profileDir, prof, p.rules)), nil
 		}
 		if p.asProfile {
 			prof.Modpack = p.ref.String()
 			// A modpack usually ships only configs besides its manifest, icon
 			// and readme; then it is no mod of its own.
 			if onlyMetadata(files) {
-				return errors.Join(Remove(profileDir, files), Sync(profileDir, prof)), nil
+				return errors.Join(Remove(profileDir, files), Sync(profileDir, prof, p.rules)), nil
 			}
 		}
 		deps := p.manifest.Dependencies
@@ -714,7 +754,7 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			Files:        files,
 		})
 		slices.SortFunc(prof.Mods, func(a, b library.Mod) int { return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)) })
-		return Sync(profileDir, prof), nil
+		return Sync(profileDir, prof, p.rules), nil
 	})
 }
 
@@ -737,6 +777,10 @@ func (in *Installer) Uninstall(gameID, profileID, modID string) (library.Profile
 	if err != nil {
 		return library.Profile{}, err
 	}
+	rules, err := in.rulesFor(context.Background(), gameID)
+	if err != nil {
+		return library.Profile{}, err
+	}
 	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
 		i := slices.IndexFunc(p.Mods, func(m library.Mod) bool { return m.ID == modID })
 		if i < 0 {
@@ -744,7 +788,7 @@ func (in *Installer) Uninstall(gameID, profileID, modID string) (library.Profile
 		}
 		removeErr := removeModFiles(profileDir, p.Mods[i], p.Mods)
 		p.Mods = slices.Delete(p.Mods, i, i+1)
-		return errors.Join(removeErr, Sync(profileDir, p)), nil
+		return errors.Join(removeErr, Sync(profileDir, p, rules)), nil
 	})
 }
 
@@ -759,8 +803,12 @@ func (in *Installer) Refresh(gameID, profileID string) (library.Profile, error) 
 	if err != nil {
 		return library.Profile{}, err
 	}
+	rules, err := in.rulesFor(context.Background(), gameID)
+	if err != nil {
+		return library.Profile{}, err
+	}
 	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
-		return Sync(profileDir, p), nil
+		return Sync(profileDir, p, rules), nil
 	})
 }
 
@@ -775,6 +823,10 @@ func (in *Installer) SetEnabled(gameID, profileID, modID string, enabled bool) (
 	if err != nil {
 		return library.Profile{}, err
 	}
+	rules, err := in.rulesFor(context.Background(), gameID)
+	if err != nil {
+		return library.Profile{}, err
+	}
 	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
 		i := slices.IndexFunc(p.Mods, func(m library.Mod) bool { return m.ID == modID })
 		if i < 0 {
@@ -784,7 +836,7 @@ func (in *Installer) SetEnabled(gameID, profileID, modID string, enabled bool) (
 			return nil, fmt.Errorf("cannot enable %s: %w: %s", p.Mods[i].Name, ErrUnmetDependencies, strings.Join(p.Mods[i].UnmetDependencies, ", "))
 		}
 		p.Mods[i].Enabled = enabled
-		return Sync(profileDir, p), nil
+		return Sync(profileDir, p, rules), nil
 	})
 }
 

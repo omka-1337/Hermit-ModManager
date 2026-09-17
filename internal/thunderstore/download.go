@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -86,26 +87,65 @@ func (c *Client) DownloadPackage(ctx context.Context, ref PackageRef, progress f
 		return Archive{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, archive.URL, nil)
+	// Thunderstore's download redirects fail now and then with 5xx errors,
+	// which should not break installing a modpack of dozens of mods.
+	var lastErr error
+	for attempt := range downloadAttempts {
+		if attempt > 0 {
+			select {
+			case <-time.After(c.retryDelay << (attempt - 1)):
+			case <-ctx.Done():
+				return Archive{}, ctx.Err()
+			}
+		}
+		sum, err := c.downloadOnce(ctx, ref, archive.URL, dir, path, progress)
+		if err == nil {
+			archive.SHA256 = sum
+			return archive, nil
+		}
+		lastErr = err
+		if !isTransient(err) || ctx.Err() != nil {
+			break
+		}
+	}
+	return Archive{}, lastErr
+}
+
+const downloadAttempts = 4
+
+// transientError marks failures worth retrying.
+type transientError struct{ error }
+
+func (e transientError) Unwrap() error { return e.error }
+
+func isTransient(err error) bool {
+	var t transientError
+	return errors.As(err, &t)
+}
+
+func (c *Client) downloadOnce(ctx context.Context, ref PackageRef, url, dir, path string, progress func(done, total int64)) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return Archive{}, err
+		return "", err
 	}
 	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.download.Do(req)
 	if err != nil {
-		return Archive{}, fmt.Errorf("download %s: %w", ref, err)
+		return "", transientError{fmt.Errorf("download %s: %w", ref, err)}
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return Archive{}, fmt.Errorf("%s: %w", ref, ErrNotFound)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return Archive{}, fmt.Errorf("download %s: %s", ref, resp.Status)
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return "", fmt.Errorf("%s: %w", ref, ErrNotFound)
+	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
+		return "", transientError{fmt.Errorf("download %s: %s", ref, resp.Status)}
+	case resp.StatusCode != http.StatusOK:
+		return "", fmt.Errorf("download %s: %s", ref, resp.Status)
 	}
 
 	tmp, err := os.CreateTemp(dir, ref.String()+".*.part")
 	if err != nil {
-		return Archive{}, err
+		return "", err
 	}
 	defer os.Remove(tmp.Name())
 
@@ -116,19 +156,18 @@ func (c *Client) DownloadPackage(ctx context.Context, ref PackageRef, progress f
 	}
 	if _, err := io.Copy(io.MultiWriter(tmp, hash), body); err != nil {
 		tmp.Close()
-		return Archive{}, fmt.Errorf("download %s: %w", ref, err)
+		return "", transientError{fmt.Errorf("download %s: %w", ref, err)}
 	}
 	if err := tmp.Close(); err != nil {
-		return Archive{}, err
+		return "", err
 	}
 	if _, err := verifyZip(tmp.Name()); err != nil {
-		return Archive{}, fmt.Errorf("download %s: invalid archive: %w", ref, err)
+		return "", transientError{fmt.Errorf("download %s: invalid archive: %w", ref, err)}
 	}
 	if err := os.Rename(tmp.Name(), path); err != nil {
-		return Archive{}, err
+		return "", err
 	}
-	archive.SHA256 = hex.EncodeToString(hash.Sum(nil))
-	return archive, nil
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // verifyZip checks that path is a readable zip and returns its SHA-256.

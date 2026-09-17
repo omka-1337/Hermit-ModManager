@@ -1,6 +1,8 @@
 package thunderstore
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -210,5 +212,37 @@ func TestVersionsAreCached(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Errorf("fetched %d times", hits)
+	}
+}
+
+func TestDownloadRetriesServerErrors(t *testing.T) {
+	var zipData bytes.Buffer
+	zw := zip.NewWriter(&zipData)
+	w, _ := zw.Create("manifest.json")
+	w.Write([]byte("{}"))
+	zw.Close()
+
+	attempts := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/package/download/A/Flaky/1.0.0/", func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts < 3 {
+			http.Error(w, "bad gateway", http.StatusBadGateway)
+			return
+		}
+		w.Write(zipData.Bytes())
+	})
+	mux.HandleFunc("/package/download/A/Missing/1.0.0/", http.NotFound)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test", t.TempDir())
+	c.retryDelay = time.Millisecond
+	ctx := context.Background()
+	if _, err := c.DownloadPackage(ctx, PackageRef{Namespace: "A", Name: "Flaky", Version: "1.0.0"}, nil); err != nil || attempts != 3 {
+		t.Errorf("flaky download: attempts=%d err=%v", attempts, err)
+	}
+	if _, err := c.DownloadPackage(ctx, PackageRef{Namespace: "A", Name: "Missing", Version: "1.0.0"}, nil); !errors.Is(err, ErrNotFound) {
+		t.Errorf("missing package must fail without retries: %v", err)
 	}
 }
