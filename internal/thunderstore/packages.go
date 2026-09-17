@@ -39,7 +39,9 @@ type ListOptions struct {
 	Ordering Ordering `json:"ordering"`
 	// Section is a section UUID from Filters; empty means all packages.
 	Section string `json:"section"`
-	Page    int    `json:"page"`
+	// Category limits the listing to a category id from Filters, e.g. modpacks.
+	Category string `json:"category"`
+	Page     int    `json:"page"`
 	// IncludeNSFW is decided by the manager settings, not by the caller.
 	IncludeNSFW bool `json:"-"`
 }
@@ -137,6 +139,9 @@ func (c *Client) ListPackages(ctx context.Context, community string, opts ListOp
 	}
 	if opts.Section != "" {
 		q.Set("section", opts.Section)
+	}
+	if opts.Category != "" {
+		q.Set("included_categories", opts.Category)
 	}
 	var resp struct {
 		Count   int              `json:"count"`

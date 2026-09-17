@@ -37,6 +37,11 @@ export interface ListOptions {
      * Section is a section UUID from Filters; empty means all packages.
      */
     "section": string;
+
+    /**
+     * Category limits the listing to a category id from Filters, e.g. modpacks.
+     */
+    "category": string;
     "page": number;
 }
 

@@ -4,6 +4,9 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as library$0 from "../library/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as plugininfo$0 from "../plugininfo/models.js";
 
 export enum Action {
     /**
@@ -65,6 +68,32 @@ export interface InstallPlan {
 }
 
 /**
+ * LocalPackage describes a mod file before installing it.
+ */
+export interface LocalPackage {
+    /**
+     * Path is the file on disk: a .zip package or a single .dll.
+     */
+    "path": string;
+
+    /**
+     * Author, Name and Version are suggestions the user may change; together
+     * they form the mod id, like a Thunderstore package.
+     */
+    "author": string;
+    "name": string;
+    "version": string;
+
+    /**
+     * HasManifest is set for zips that are Thunderstore packages.
+     */
+    "hasManifest": boolean;
+    "description": string;
+    "dependencies": string[] | null;
+    "plugins": plugininfo$0.Plugin[] | null;
+}
+
+/**
  * Options control how a package is installed.
  */
 export interface Options {
@@ -103,8 +132,19 @@ export interface Progress {
      */
     "package": string;
     "stage": Stage;
+
+    /**
+     * Done and Total are bytes of the current download.
+     */
     "done": number;
     "total": number;
+
+    /**
+     * Step and Steps count packages: finished and known downloads while
+     * downloading, the current and total package while installing.
+     */
+    "step": number;
+    "steps": number;
 }
 
 export enum Stage {

@@ -4,6 +4,9 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as configs$0 from "../configs/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as github$0 from "../github/models.js";
 
 export interface AppInfo {
     "name": string;
@@ -20,6 +23,12 @@ export interface ConfigContent {
      * Document is the parsed structure of .cfg files, nil for other files.
      */
     "document": configs$0.Document | null;
+}
+
+export interface GitHubRepo {
+    "owner": string;
+    "repo": string;
+    "releases": github$0.Release[] | null;
 }
 
 export interface LaunchInfo {

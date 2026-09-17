@@ -83,17 +83,29 @@ export function ErrorText({ children }: { children: ReactNode }) {
   return children ? <p className="text-sm whitespace-pre-line text-red-400">{children}</p> : null;
 }
 
-type ModalProps = { title: string; onClose: () => void; children: ReactNode; wide?: boolean };
+type ModalProps = {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  // size: md for forms, lg for lists, xl for full browsers filling most of the window.
+  size?: "md" | "lg" | "xl";
+};
 
-export function Modal({ title, onClose, children, wide }: ModalProps) {
+const modalSizes = {
+  md: "max-w-lg",
+  lg: "max-w-2xl",
+  xl: "flex h-[85vh] max-w-6xl flex-col",
+};
+
+export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-6" onMouseDown={onClose}>
       <div
-        className={`w-full ${wide ? "max-w-2xl" : "max-w-lg"} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
+        className={`w-full ${modalSizes[size]} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 className="mb-4 text-lg font-semibold">{title}</h2>
-        {children}
+        {size === "xl" ? <div className="flex min-h-0 flex-1 flex-col">{children}</div> : children}
       </div>
     </div>
   );

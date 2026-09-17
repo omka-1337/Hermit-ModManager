@@ -91,6 +91,7 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
             profileId={openProfile.profileId}
             onBack={() => setOpenProfile(null)}
             onGameChanged={() => onGamesChanged(selected.id)}
+            onOpenProfile={(profileId) => setOpenProfile({ gameId: selected.id, profileId })}
           />
         ) : selected ? (
           <GameView
@@ -113,7 +114,7 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
       </main>
 
       {adding && (
-        <Modal title="Add game" wide onClose={() => setAdding(false)}>
+        <Modal title="Add game" size="lg" onClose={() => setAdding(false)}>
           <GamePicker
             onAdded={async (g) => {
               setAdding(false);

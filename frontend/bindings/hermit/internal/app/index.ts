@@ -21,5 +21,6 @@ export {
 export type {
     AppInfo,
     ConfigContent,
+    GitHubRepo,
     LaunchInfo
 } from "./models.js";

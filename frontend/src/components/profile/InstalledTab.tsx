@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { confirmDanger, errorMessage, Mod } from "../../api";
 import { Button, ErrorText, Toggle } from "../ui";
+import AddModModal from "./AddModModal";
 import LaunchReport, { issueText } from "./LaunchReport";
-import PackageIcon from "./PackageIcon";
+import PackageIcon from "../browse/PackageIcon";
 import { dependantsOf, dependencyLabel, thunderstoreIconURL, useProfile } from "./ProfileContext";
 
 export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
   const { profile, installed, busy, report, uninstall, setEnabled, updates, checkingUpdates, checkUpdates, update, updateAll } =
     useProfile();
   const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
   const mods = profile.mods ?? [];
 
   const act = async (action: () => Promise<void>) => {
@@ -31,19 +33,26 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
       }
     });
 
+  const addModal = adding && <AddModModal onClose={() => setAdding(false)} />;
+
   if (mods.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <p className="text-zinc-400">No mods installed in this profile.</p>
-        <Button variant="primary" onClick={onBrowse}>
-          Browse mods
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="primary" onClick={onBrowse}>
+            Browse mods
+          </Button>
+          <Button onClick={() => setAdding(true)}>Add from file or GitHub…</Button>
+        </div>
+        {addModal}
       </div>
     );
   }
 
   return (
     <div className="h-full overflow-y-auto px-6 py-3">
+      {addModal}
       <ErrorText>{error}</ErrorText>
       <div className="mb-3 flex items-center justify-between gap-3 text-sm">
         <span className={updates.size ? "text-amber-400" : "text-zinc-500"}>
@@ -54,6 +63,9 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
               : "All mods are up to date"}
         </span>
         <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setAdding(true)}>
+            Add mod…
+          </Button>
           <Button variant="ghost" disabled={checkingUpdates || busy !== null} onClick={() => act(checkUpdates)}>
             Check again
           </Button>
@@ -95,6 +107,11 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate text-sm font-medium">
                     {m.name} <span className="font-normal text-zinc-500">by {m.author}</span>
+                    {m.source.type !== "thunderstore" && (
+                      <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400 uppercase">
+                        {m.source.type === "github" ? "GitHub" : "Local"}
+                      </span>
+                    )}
                   </span>
                   {issue && m.active && <span className="truncate text-xs text-red-400">{issueText(issue)}</span>}
                   {unmet.length > 0 ? (

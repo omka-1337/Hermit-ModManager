@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { confirmDanger, errorMessage, Stage } from "../../api";
-import { formatBytes } from "../../format";
+import { confirmDanger, errorMessage } from "../../api";
+import { progressText } from "../../format";
 import { Button, ErrorText } from "../ui";
 import { dependantsOf, useProfile } from "./ProfileContext";
 
@@ -8,10 +8,10 @@ type Props = {
   namespace: string;
   name: string;
   latestVersion: string;
-  modpack: boolean;
 };
 
-export default function InstallButton({ namespace, name, latestVersion, modpack }: Props) {
+// InstallButton installs, updates or removes a regular mod in the open profile.
+export default function InstallButton({ namespace, name, latestVersion }: Props) {
   const { installed, busy, progress, install, uninstall } = useProfile();
   const [error, setError] = useState("");
   const id = `${namespace}-${name}`;
@@ -37,18 +37,7 @@ export default function InstallButton({ namespace, name, latestVersion, modpack 
       }
     });
 
-  let status = "";
-  if (busy === id && progress) {
-    const what = progress.package.replace(/-\d+\.\d+\.\d+$/, "");
-    if (progress.stage === Stage.StageDownload) {
-      status =
-        progress.total > 0
-          ? `Downloading ${what}… ${Math.floor((progress.done / progress.total) * 100)}%`
-          : `Downloading ${what}… ${formatBytes(progress.done)}`;
-    } else {
-      status = `Installing ${what}…`;
-    }
-  }
+  const status = busy === id && progress ? progressText(progress) : "";
 
   return (
     <div className="flex flex-col gap-2">
@@ -56,7 +45,11 @@ export default function InstallButton({ namespace, name, latestVersion, modpack 
         {mod && mod.version === latestVersion ? (
           <Button disabled>{mod.active ? "Installed" : "Installed (disabled)"}</Button>
         ) : (
-          <Button variant="primary" disabled={busy !== null} onClick={() => act(() => install(namespace, name, latestVersion, modpack))}>
+          <Button
+            variant="primary"
+            disabled={busy !== null}
+            onClick={() => act(() => install(namespace, name, latestVersion, false))}
+          >
             {busy === id ? "Installing…" : mod ? `Update to ${latestVersion}` : "Install"}
           </Button>
         )}

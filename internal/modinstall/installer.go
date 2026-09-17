@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,9 +30,17 @@ type Progress struct {
 	// Package is the package currently being processed, a dependency or the target.
 	Package string `json:"package"`
 	Stage   Stage  `json:"stage"`
-	Done    int64  `json:"done"`
-	Total   int64  `json:"total"`
+	// Done and Total are bytes of the current download.
+	Done  int64 `json:"done"`
+	Total int64 `json:"total"`
+	// Step and Steps count packages: finished and known downloads while
+	// downloading, the current and total package while installing.
+	Step  int `json:"step"`
+	Steps int `json:"steps"`
 }
+
+// reporter sends progress for one install operation.
+type reporter func(pkg thunderstore.PackageRef, stage Stage, done, total int64, step, steps int)
 
 // Repository is where packages come from (the Thunderstore client).
 type Repository interface {
@@ -49,15 +59,19 @@ type Options struct {
 	// Pinned maps mod ids to the versions to use whenever they appear as a
 	// dependency, e.g. the mod list of an imported profile.
 	Pinned map[string]string `json:"-"`
+	// asProfile installs a modpack as the profile itself: its configs go into
+	// the profile, but it is recorded as Profile.Modpack instead of a mod.
+	asProfile bool
 }
 
 // RulesFunc returns the install rules of a game.
 type RulesFunc func(ctx context.Context, game library.Game) Rules
 
 type Installer struct {
-	lib   *library.Library
-	repo  Repository
-	rules RulesFunc
+	lib    *library.Library
+	repo   Repository
+	rules  RulesFunc
+	github GitHubSource
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
@@ -96,6 +110,11 @@ type plannedPackage struct {
 	manifest thunderstore.Manifest
 	rules    Rules
 	files    []string
+	// overwriteConfigs replaces existing config files with the package's.
+	overwriteConfigs bool
+	asProfile        bool
+	// source overrides the Thunderstore source recorded for the mod.
+	source *library.ModSource
 }
 
 type Action string
@@ -222,18 +241,18 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 					p.Mods = slices.Delete(p.Mods, i, i+1)
 				}
 			}
-			return errors.Join(append(errs, Sync(profileDir, p))...), nil
+			return errors.Join(append(errs, Sync(profileDir, p, rules))...), nil
 		})
 		if err != nil {
 			return library.Profile{}, err
 		}
 	}
 
-	for _, p := range plan {
+	for i, p := range plan {
 		if err := ctx.Err(); err != nil {
 			return library.Profile{}, err
 		}
-		report(p.ref, StageInstall, 0, 0)
+		report(p.ref, StageInstall, 0, 0, i+1, len(plan))
 		if _, err := in.installOne(gameID, profileID, profileDir, p); err != nil {
 			return library.Profile{}, err
 		}
@@ -241,10 +260,33 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 	return in.lib.GetProfile(gameID, profileID)
 }
 
-func (in *Installer) progressFunc(gameID, profileID string, target thunderstore.PackageRef, onProgress func(Progress)) func(thunderstore.PackageRef, Stage, int64, int64) {
-	return func(pkg thunderstore.PackageRef, stage Stage, done, total int64) {
+// InstallAsNewProfile creates a profile named after a modpack and installs the
+// modpack into it. If installing fails, the new profile is removed again.
+func (in *Installer) InstallAsNewProfile(ctx context.Context, gameID, name string, ref thunderstore.PackageRef, onProgress func(Progress)) (library.Profile, error) {
+	if err := ref.Validate(); err != nil {
+		return library.Profile{}, err
+	}
+	profile, err := in.lib.CreateProfile(gameID, name)
+	if err != nil {
+		return library.Profile{}, err
+	}
+	installed, err := in.Install(ctx, gameID, profile.ID, ref, Options{Modpack: true, asProfile: true}, onProgress)
+	if err != nil {
+		if rmErr := in.lib.RemoveProfile(gameID, profile.ID); rmErr != nil {
+			err = errors.Join(err, fmt.Errorf("remove incomplete profile: %w", rmErr))
+		}
+		return library.Profile{}, err
+	}
+	return installed, nil
+}
+
+func (in *Installer) progressFunc(gameID, profileID string, target thunderstore.PackageRef, onProgress func(Progress)) reporter {
+	return func(pkg thunderstore.PackageRef, stage Stage, done, total int64, step, steps int) {
 		if onProgress != nil {
-			onProgress(Progress{GameID: gameID, ProfileID: profileID, Target: target.ID(), Package: pkg.String(), Stage: stage, Done: done, Total: total})
+			onProgress(Progress{
+				GameID: gameID, ProfileID: profileID, Target: target.ID(), Package: pkg.String(),
+				Stage: stage, Done: done, Total: total, Step: step, Steps: steps,
+			})
 		}
 	}
 }
@@ -257,14 +299,66 @@ func (in *Installer) progressFunc(gameID, profileID string, target thunderstore.
 //   - otherwise a missing dependency is installed in its latest version and an
 //     installed one is left alone, unless it is older than required, in which
 //     case it is updated to the latest version (r2modman keeps it as is).
-func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref thunderstore.PackageRef, opts Options, rules Rules, report func(thunderstore.PackageRef, Stage, int64, int64)) ([]plannedPackage, error) {
+//
+// Archives are downloaded in parallel: as soon as a manifest is read, all its
+// dependencies start downloading while the tree is walked in order.
+func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref thunderstore.PackageRef, opts Options, rules Rules, report reporter) ([]plannedPackage, error) {
 	installed := map[string]string{}
 	for _, m := range profile.Mods {
 		installed[m.ID] = m.Version
 	}
 
+	installedLoader := slices.ContainsFunc(profile.Mods, func(m library.Mod) bool {
+		return rules.IsLoaderPackage(m.ID) || IsLoader(m.Files)
+	})
+
+	// target decides which version of a dependency to install; skip means the
+	// installed one is fine. It only reads state that no longer changes once
+	// downloads start, so it is safe to call from download goroutines.
+	target := func(r thunderstore.PackageRef) (thunderstore.PackageRef, bool) {
+		if _, pinned := opts.Pinned[r.ID()]; !pinned && rules.IsLoaderPackage(r.ID()) {
+			// Any BepInEx loader satisfies a dependency on one; keep the profile's.
+			if installedLoader && !slices.ContainsFunc(profile.Mods, func(m library.Mod) bool { return m.ID == r.ID() }) {
+				return r, true
+			}
+			for id := range opts.Pinned {
+				if rules.IsLoaderPackage(id) {
+					return r, true
+				}
+			}
+		}
+		if pinned, ok := opts.Pinned[r.ID()]; ok {
+			r.Version = pinned
+			return r, installed[r.ID()] == pinned
+		}
+		v, ok := installed[r.ID()]
+		switch {
+		case opts.Modpack:
+			return r, v == r.Version
+		case ok && CompareVersions(v, r.Version) >= 0:
+			return r, true
+		default:
+			r.Version = in.latestVersion(ctx, r)
+			return r, false
+		}
+	}
+
+	f := newFetcher(ctx, in.repo, rules, report)
+	prefetch := func(deps []string) {
+		for _, dep := range deps {
+			if r, err := thunderstore.ParseDependency(dep); err == nil {
+				go func() {
+					if t, skip := target(r); !skip {
+						f.fetch(t)
+					}
+				}()
+			}
+		}
+	}
+
 	var plan []plannedPackage
 	planned := map[string]int{}
+	plannedLoader := ""
 	var visit func(r thunderstore.PackageRef, root bool) error
 	visit = func(r thunderstore.PackageRef, root bool) error {
 		if i, ok := planned[r.ID()]; ok {
@@ -272,39 +366,39 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 				return nil // being resolved (cycle) or already planned at a sufficient version
 			}
 		}
-		if pinned, ok := opts.Pinned[r.ID()]; ok && !root {
-			if installed[r.ID()] == pinned {
+		if !root && plannedLoader != "" && plannedLoader != r.ID() && rules.IsLoaderPackage(r.ID()) {
+			return nil // another loader is already on its way
+		}
+		if !root {
+			var skip bool
+			if r, skip = target(r); skip {
 				return nil
-			}
-			r.Version = pinned
-		} else if !root {
-			v, ok := installed[r.ID()]
-			switch {
-			case opts.Modpack && v == r.Version:
-				return nil
-			case opts.Modpack:
-			case ok && CompareVersions(v, r.Version) >= 0:
-				return nil
-			default:
-				r.Version = in.latestVersion(ctx, r)
 			}
 		}
 		planned[r.ID()] = -1
-		archive, err := in.repo.DownloadPackage(ctx, r, func(done, total int64) {
-			report(r, StageDownload, done, total)
-		})
-		if err != nil {
-			return err
+		res := f.wait(f.fetch(r))
+		if res.err != nil {
+			return res.err
 		}
-		manifest, err := thunderstore.ReadManifest(archive.Path)
-		if err != nil {
-			return fmt.Errorf("%s: %w", r, err)
+		if root && opts.Modpack {
+			// The versions a modpack lists win over what its mods' own
+			// manifests ask for, as when importing a profile. Set before any
+			// download goroutine reads opts.
+			pinned := maps.Clone(opts.Pinned)
+			if pinned == nil {
+				pinned = map[string]string{}
+			}
+			for _, dep := range res.manifest.Dependencies {
+				if d, err := thunderstore.ParseDependency(dep); err == nil {
+					if _, explicit := pinned[d.ID()]; !explicit {
+						pinned[d.ID()] = d.Version
+					}
+				}
+			}
+			opts.Pinned = pinned
 		}
-		files, err := PlanFiles(archive.Path, r.ID(), rules)
-		if err != nil {
-			return fmt.Errorf("%s: %w", r, err)
-		}
-		for _, dep := range manifest.Dependencies {
+		prefetch(res.manifest.Dependencies)
+		for _, dep := range res.manifest.Dependencies {
 			depRef, err := thunderstore.ParseDependency(dep)
 			if err != nil {
 				return fmt.Errorf("%s: %w", r, err)
@@ -313,7 +407,15 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 				return err
 			}
 		}
-		plan = append(plan, plannedPackage{ref: r, archive: archive, manifest: manifest, rules: rules, files: files})
+		if rules.IsLoaderPackage(r.ID()) || IsLoader(res.files) {
+			plannedLoader = r.ID()
+		}
+		plan = append(plan, plannedPackage{
+			ref: r, archive: res.archive, manifest: res.manifest, rules: rules, files: res.files,
+			// A modpack's own config files are the point of the modpack.
+			overwriteConfigs: root && opts.Modpack,
+			asProfile:        root && opts.asProfile,
+		})
 		planned[r.ID()] = len(plan) - 1
 		return nil
 	}
@@ -329,6 +431,85 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 		}
 	}
 	return result, nil
+}
+
+// fetcher downloads and inspects package archives, at most four at a time,
+// each package version only once.
+type fetcher struct {
+	ctx    context.Context
+	repo   Repository
+	rules  Rules
+	report reporter
+	slots  chan struct{}
+
+	mu        sync.Mutex
+	results   map[string]*fetchResult
+	requested int
+	finished  int
+}
+
+type fetchResult struct {
+	done     chan struct{}
+	archive  thunderstore.Archive
+	manifest thunderstore.Manifest
+	files    []string
+	err      error
+}
+
+func newFetcher(ctx context.Context, repo Repository, rules Rules, report reporter) *fetcher {
+	return &fetcher{ctx: ctx, repo: repo, rules: rules, report: report, slots: make(chan struct{}, 4), results: map[string]*fetchResult{}}
+}
+
+// fetch starts downloading a package unless already started.
+func (f *fetcher) fetch(r thunderstore.PackageRef) *fetchResult {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if res, ok := f.results[r.String()]; ok {
+		return res
+	}
+	res := &fetchResult{done: make(chan struct{})}
+	f.results[r.String()] = res
+	f.requested++
+	go f.run(r, res)
+	return res
+}
+
+func (f *fetcher) wait(res *fetchResult) *fetchResult {
+	<-res.done
+	return res
+}
+
+func (f *fetcher) counts() (int, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.finished, f.requested
+}
+
+func (f *fetcher) run(r thunderstore.PackageRef, res *fetchResult) {
+	defer close(res.done)
+	select {
+	case f.slots <- struct{}{}:
+		defer func() { <-f.slots }()
+	case <-f.ctx.Done():
+		res.err = f.ctx.Err()
+		return
+	}
+	res.archive, res.err = f.repo.DownloadPackage(f.ctx, r, func(done, total int64) {
+		step, steps := f.counts()
+		f.report(r, StageDownload, done, total, step, steps)
+	})
+	if res.err == nil {
+		res.manifest, res.err = thunderstore.ReadManifest(res.archive.Path)
+	}
+	if res.err == nil {
+		res.files, res.err = PlanFiles(res.archive.Path, r.ID(), f.rules)
+	}
+	if res.err != nil {
+		res.err = fmt.Errorf("%s: %w", r, res.err)
+	}
+	f.mu.Lock()
+	f.finished++
+	f.mu.Unlock()
 }
 
 // Update is an installed mod with a newer version available.
@@ -352,18 +533,37 @@ func (in *Installer) CheckUpdates(ctx context.Context, gameID, profileID string)
 		limit   = make(chan struct{}, 6)
 	)
 	for _, m := range profile.Mods {
-		if m.Source.Type != library.SourceThunderstore {
+		var check func() (string, bool)
+		switch m.Source.Type {
+		case library.SourceThunderstore:
+			ref := thunderstore.PackageRef{Namespace: m.Author, Name: m.Name, Version: m.Version}
+			check = func() (string, bool) {
+				latest := in.latestVersion(ctx, ref)
+				return latest, CompareVersions(latest, ref.Version) > 0
+			}
+		case library.SourceGitHub:
+			if in.github == nil {
+				continue
+			}
+			check = func() (string, bool) {
+				release, err := in.latestGitHubRelease(ctx, m)
+				if err != nil || release.Tag == m.Source.Release {
+					return "", false
+				}
+				latest := NormalizeVersion(release.Tag)
+				return latest, CompareVersions(latest, m.Version) > 0
+			}
+		default:
 			continue
 		}
-		ref := thunderstore.PackageRef{Namespace: m.Author, Name: m.Name, Version: m.Version}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			limit <- struct{}{}
 			defer func() { <-limit }()
-			if latest := in.latestVersion(ctx, ref); CompareVersions(latest, ref.Version) > 0 {
+			if latest, newer := check(); newer {
 				mu.Lock()
-				updates = append(updates, Update{ModID: ref.ID(), Current: ref.Version, Latest: latest})
+				updates = append(updates, Update{ModID: m.ID, Current: m.Version, Latest: latest})
 				mu.Unlock()
 			}
 		}()
@@ -401,11 +601,7 @@ func (in *Installer) UpdateAll(ctx context.Context, gameID, profileID string, on
 				continue
 			}
 		}
-		ref, err := thunderstore.ParseDependency(u.ModID + "-" + u.Latest)
-		if err == nil {
-			_, err = in.Install(ctx, gameID, profileID, ref, Options{}, onProgress)
-		}
-		if err != nil {
+		if _, err := in.UpdateMod(ctx, gameID, profileID, u.ModID, onProgress); err != nil {
 			if ctx.Err() != nil {
 				return UpdateResult{}, ctx.Err()
 			}
@@ -416,6 +612,28 @@ func (in *Installer) UpdateAll(ctx context.Context, gameID, profileID string, on
 	}
 	result.Profile, err = in.lib.GetProfile(gameID, profileID)
 	return result, err
+}
+
+// UpdateMod updates a Thunderstore or GitHub mod to its latest version.
+func (in *Installer) UpdateMod(ctx context.Context, gameID, profileID, modID string, onProgress func(Progress)) (library.Profile, error) {
+	profile, err := in.lib.GetProfile(gameID, profileID)
+	if err != nil {
+		return library.Profile{}, err
+	}
+	i := slices.IndexFunc(profile.Mods, func(m library.Mod) bool { return m.ID == modID })
+	if i < 0 {
+		return library.Profile{}, fmt.Errorf("mod %q: %w", modID, library.ErrNotFound)
+	}
+	m := profile.Mods[i]
+	switch m.Source.Type {
+	case library.SourceThunderstore:
+		ref := thunderstore.PackageRef{Namespace: m.Author, Name: m.Name, Version: m.Version}
+		ref.Version = in.latestVersion(ctx, ref)
+		return in.Install(ctx, gameID, profileID, ref, Options{}, onProgress)
+	case library.SourceGitHub:
+		return in.updateGitHub(ctx, gameID, profileID, m, onProgress)
+	}
+	return library.Profile{}, fmt.Errorf("%s was installed from a file and cannot be updated automatically", m.Name)
 }
 
 // latestVersion returns the newest published version of a package, or the
@@ -543,16 +761,24 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			prof.Mods = slices.Delete(prof.Mods, i, i+1)
 		}
 
-		files, err := Extract(p.archive.Path, profileDir, p.ref.ID(), p.rules)
+		files, err := Extract(p.archive.Path, profileDir, p.ref.ID(), p.rules, p.overwriteConfigs)
 		if err != nil {
 			// The old version is already gone, so the profile is saved without it.
-			return errors.Join(fmt.Errorf("install %s: %w", p.ref, err), Sync(profileDir, prof)), nil
+			return errors.Join(fmt.Errorf("install %s: %w", p.ref, err), Sync(profileDir, prof, p.rules)), nil
+		}
+		if p.asProfile {
+			prof.Modpack = p.ref.String()
+			// A modpack usually ships only configs besides its manifest, icon
+			// and readme; then it is no mod of its own.
+			if onlyMetadata(files) {
+				return errors.Join(Remove(profileDir, files), Sync(profileDir, prof, p.rules)), nil
+			}
 		}
 		deps := p.manifest.Dependencies
 		if deps == nil {
 			deps = []string{}
 		}
-		prof.Mods = append(prof.Mods, library.Mod{
+		mod := library.Mod{
 			ID:      p.ref.ID(),
 			Name:    p.ref.Name,
 			Author:  p.ref.Namespace,
@@ -566,9 +792,23 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			},
 			Dependencies: deps,
 			Files:        files,
-		})
+		}
+		if p.source != nil {
+			mod.Source = *p.source
+			mod.Source.SHA256 = p.archive.SHA256
+		}
+		mod.Plugins = scanPlugins(profileDir, mod)
+		prof.Mods = append(prof.Mods, mod)
 		slices.SortFunc(prof.Mods, func(a, b library.Mod) int { return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)) })
-		return Sync(profileDir, prof), nil
+		return Sync(profileDir, prof, p.rules), nil
+	})
+}
+
+var packageMetadata = []string{"manifest.json", "icon.png", "readme.md", "changelog.md", "license", "license.md", "license.txt"}
+
+func onlyMetadata(files []string) bool {
+	return !slices.ContainsFunc(files, func(f string) bool {
+		return !slices.Contains(packageMetadata, strings.ToLower(path.Base(f)))
 	})
 }
 
@@ -583,6 +823,10 @@ func (in *Installer) Uninstall(gameID, profileID, modID string) (library.Profile
 	if err != nil {
 		return library.Profile{}, err
 	}
+	rules, err := in.rulesFor(context.Background(), gameID)
+	if err != nil {
+		return library.Profile{}, err
+	}
 	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
 		i := slices.IndexFunc(p.Mods, func(m library.Mod) bool { return m.ID == modID })
 		if i < 0 {
@@ -590,7 +834,7 @@ func (in *Installer) Uninstall(gameID, profileID, modID string) (library.Profile
 		}
 		removeErr := removeModFiles(profileDir, p.Mods[i], p.Mods)
 		p.Mods = slices.Delete(p.Mods, i, i+1)
-		return errors.Join(removeErr, Sync(profileDir, p)), nil
+		return errors.Join(removeErr, Sync(profileDir, p, rules)), nil
 	})
 }
 
@@ -605,8 +849,18 @@ func (in *Installer) Refresh(gameID, profileID string) (library.Profile, error) 
 	if err != nil {
 		return library.Profile{}, err
 	}
+	rules, err := in.rulesFor(context.Background(), gameID)
+	if err != nil {
+		return library.Profile{}, err
+	}
 	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
-		return Sync(profileDir, p), nil
+		// Mods installed before plugin scanning existed have no plugin list yet.
+		for i := range p.Mods {
+			if p.Mods[i].Plugins == nil {
+				p.Mods[i].Plugins = scanPlugins(profileDir, p.Mods[i])
+			}
+		}
+		return Sync(profileDir, p, rules), nil
 	})
 }
 
@@ -621,6 +875,10 @@ func (in *Installer) SetEnabled(gameID, profileID, modID string, enabled bool) (
 	if err != nil {
 		return library.Profile{}, err
 	}
+	rules, err := in.rulesFor(context.Background(), gameID)
+	if err != nil {
+		return library.Profile{}, err
+	}
 	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
 		i := slices.IndexFunc(p.Mods, func(m library.Mod) bool { return m.ID == modID })
 		if i < 0 {
@@ -630,7 +888,7 @@ func (in *Installer) SetEnabled(gameID, profileID, modID string, enabled bool) (
 			return nil, fmt.Errorf("cannot enable %s: %w: %s", p.Mods[i].Name, ErrUnmetDependencies, strings.Join(p.Mods[i].UnmetDependencies, ", "))
 		}
 		p.Mods[i].Enabled = enabled
-		return Sync(profileDir, p), nil
+		return Sync(profileDir, p, rules), nil
 	})
 }
 

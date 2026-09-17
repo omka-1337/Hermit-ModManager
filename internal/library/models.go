@@ -1,5 +1,7 @@
 package library
 
+import "hermit/internal/plugininfo"
+
 type Runtime string
 
 const (
@@ -52,7 +54,10 @@ type Profile struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	ID            string `json:"id"`
 	Name          string `json:"name"`
-	Mods          []Mod  `json:"mods"`
+	// Modpack is the Thunderstore modpack the profile was created from,
+	// "<author>-<name>-<version>"; empty for profiles assembled by hand.
+	Modpack string `json:"modpack,omitempty"`
+	Mods    []Mod  `json:"mods"`
 }
 
 type Mod struct {
@@ -75,6 +80,9 @@ type Mod struct {
 	Dependencies []string `json:"dependencies"`
 	// Files are slash-separated paths relative to the profile directory.
 	Files []string `json:"files"`
+	// Plugins are the BepInEx plugins found in the mod's assemblies; nil
+	// until they have been scanned.
+	Plugins []plugininfo.Plugin `json:"plugins"`
 }
 
 type ModSourceType string
@@ -82,12 +90,17 @@ type ModSourceType string
 const (
 	SourceLocal        ModSourceType = "local"
 	SourceThunderstore ModSourceType = "thunderstore"
-	SourceURL          ModSourceType = "url"
+	SourceGitHub       ModSourceType = "github"
 )
 
-// ModSource describes where to re-fetch a mod when importing a profile.
+// ModSource describes where a mod came from and how to fetch it again.
 type ModSource struct {
-	Type   ModSourceType `json:"type"`
-	URL    string        `json:"url,omitempty"`
-	SHA256 string        `json:"sha256,omitempty"`
+	Type ModSourceType `json:"type"`
+	// URL is the Thunderstore download URL, the GitHub repository URL, or the
+	// file name of a local file.
+	URL    string `json:"url,omitempty"`
+	SHA256 string `json:"sha256,omitempty"`
+	// Release and Asset identify the GitHub release file the mod came from.
+	Release string `json:"release,omitempty"`
+	Asset   string `json:"asset,omitempty"`
 }

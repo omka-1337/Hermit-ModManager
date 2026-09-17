@@ -41,3 +41,28 @@ export function compareVersions(a: string, b: string): number {
   }
   return 0;
 }
+
+// packageLabel turns "<author>-<name>-<version>" into "Name v1.2.3". Authors may
+// contain "-", package names may not.
+export function packageLabel(full: string): string {
+  const m = full.match(/^.*-([^-]+)-(\d+\.\d+\.\d+)$/);
+  return m ? `${m[1].replace(/_/g, " ")} v${m[2]}` : full;
+}
+
+// progressText describes install progress, e.g. "Downloading 12/40 · LethalLib 45%".
+export function progressText(p: {
+  package: string;
+  stage: string;
+  done: number;
+  total: number;
+  step: number;
+  steps: number;
+}): string {
+  const what = p.package.replace(/-\d+\.\d+\.\d+$/, "").replace(/^.*-/, "");
+  const count = p.steps > 1 ? ` ${p.step}/${p.steps}` : "";
+  if (p.stage === "download") {
+    const size = p.total > 0 ? `${Math.floor((p.done / p.total) * 100)}%` : formatBytes(p.done);
+    return `Downloading${count} · ${what} ${size}`;
+  }
+  return `Installing${count} · ${what}`;
+}

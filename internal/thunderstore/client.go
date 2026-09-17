@@ -25,6 +25,8 @@ type Client struct {
 	http          *http.Client
 	download      *http.Client
 	cacheDir      string
+	// retryDelay is the first pause between download attempts; it doubles.
+	retryDelay time.Duration
 
 	schemaMu      sync.Mutex
 	schema        *Ecosystem
@@ -48,6 +50,7 @@ func NewClient(baseURL, userAgent, cacheDir string) *Client {
 	return &Client{
 		baseURL:       strings.TrimRight(baseURL, "/"),
 		exclusionsURL: ExclusionsURL,
+		retryDelay:    time.Second,
 		userAgent:     userAgent,
 		http:          &http.Client{Timeout: 30 * time.Second},
 		// Package archives can be hundreds of MB, so only the time to first

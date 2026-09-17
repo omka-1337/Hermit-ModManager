@@ -5,13 +5,15 @@ import (
 	"embed"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"hermit/internal/app"
+	"hermit/internal/github"
 	"hermit/internal/launch"
 	"hermit/internal/library"
 	"hermit/internal/modinstall"
@@ -35,6 +37,7 @@ type backend struct {
 	steamRoots []string
 	lib        *library.Library
 	ts         *thunderstore.Client
+	github     *github.Client
 	installer  *modinstall.Installer
 }
 
@@ -58,12 +61,16 @@ func newBackend() (*backend, error) {
 		}
 		return modinstall.RulesFromSchema(schema, game.SteamAppID, game.Executable)
 	}
+	gh := github.NewClient(github.DefaultAPIURL, app.ID+"/"+app.Version, filepath.Join(root, "cache", "github"))
+	installer := modinstall.NewInstaller(lib, ts, rules)
+	installer.SetGitHub(gh)
 	return &backend{
 		root:       root,
 		steamRoots: steamRoots,
 		lib:        lib,
 		ts:         ts,
-		installer:  modinstall.NewInstaller(lib, ts, rules),
+		github:     gh,
+		installer:  installer,
 	}, nil
 }
 
@@ -74,6 +81,7 @@ func main() {
 	}
 
 	platform.ConfigureRendering()
+	platform.SetProgramName(app.ID, app.Name)
 
 	b, err := newBackend()
 	if err != nil {
@@ -89,7 +97,7 @@ func main() {
 			application.NewService(b.lib),
 			application.NewService(settingsStore),
 			application.NewService(app.NewBrowseService(b.lib, b.ts, settingsStore)),
-			application.NewService(app.NewInstallService(b.installer)),
+			application.NewService(app.NewInstallService(b.installer, b.github)),
 			application.NewService(app.NewLaunchService(b.lib, b.steamRoots)),
 			application.NewService(app.NewIconService(b.steamRoots)),
 			application.NewService(app.NewConfigService(b.lib)),
@@ -102,10 +110,12 @@ func main() {
 		},
 	})
 
-	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title: app.Name,
 		// The frontend draws its own title bar and window controls.
-		Frameless:        true,
+		Frameless: true,
+		// Shown by showFramelessWindow once the native window exists.
+		Hidden:           true,
 		Width:            1200,
 		Height:           760,
 		MinWidth:         900,
@@ -114,9 +124,27 @@ func main() {
 		URL:              "/",
 	})
 
+	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		go showFramelessWindow(window)
+	})
+
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// showFramelessWindow shows the main window after preparing its native GTK
+// window, which Wails creates asynchronously after startup.
+func showFramelessWindow(window *application.WebviewWindow) {
+	for range 200 {
+		native := application.InvokeSyncWithResult(window.NativeWindow)
+		if native != nil {
+			application.InvokeSync(func() { platform.PrepareFramelessWindow(native, app.Name) })
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	window.Show()
 }
 
 func runWrapper(args []string) int {
@@ -129,7 +157,7 @@ func runWrapper(args []string) int {
 }
 
 func notify(summary, body string) {
-	_ = exec.Command("notify-send", "--app-name="+app.Name, summary, body).Run()
+	_ = platform.Command("notify-send", "--app-name="+app.Name, summary, body).Run()
 }
 
 // migrateDataDir moves data kept under the app's working title to its final

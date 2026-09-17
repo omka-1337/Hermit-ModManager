@@ -135,6 +135,12 @@ var loaderMetadata = []string{"manifest.json", "icon.png", "readme.md"}
 
 // loaderRoot reports whether the package is a mod loader and returns the
 // archive prefix that maps to the profile root.
+//
+// Loaders are identified by the schema's modloaderPackages list, like r2modman
+// does. The fallback for packages not on the list must be strict: regular mods
+// also ship files in BepInEx/core (e.g. MonoMod assemblies), so a loader needs
+// BepInEx's own assemblies plus a launcher (doorstop files or a start script)
+// next to the BepInEx folder.
 func loaderRoot(names []string, modID string, rules Rules) (string, bool) {
 	if folder, ok := rules.LoaderPackages[strings.ToLower(modID)]; ok {
 		if folder == "" {
@@ -142,18 +148,33 @@ func loaderRoot(names []string, modID string, rules Rules) (string, bool) {
 		}
 		return folder + "/", true
 	}
+	lower := make(map[string]bool, len(names))
+	for _, n := range names {
+		lower[strings.ToLower(n)] = true
+	}
 	for _, name := range names {
-		i := strings.Index(strings.ToLower(name), "bepinex/core/")
+		l := strings.ToLower(name)
+		i := strings.Index(l, "bepinex/core/")
 		if i < 0 {
 			continue
 		}
-		prefix := name[:i]
-		if prefix == "" || (strings.Count(prefix, "/") == 1 && strings.HasSuffix(prefix, "/")) {
-			return prefix, true
+		prefix := l[:i]
+		if prefix != "" && (strings.Count(prefix, "/") != 1 || !strings.HasSuffix(prefix, "/")) {
+			continue
+		}
+		hasBepInEx := slices.ContainsFunc(loaderAssemblies, func(a string) bool { return lower[prefix+"bepinex/core/"+a] })
+		hasLauncher := slices.ContainsFunc(loaderLaunchers, func(f string) bool { return lower[prefix+f] })
+		if hasBepInEx && hasLauncher {
+			return name[:i], true
 		}
 	}
 	return "", false
 }
+
+var (
+	loaderAssemblies = []string{"bepinex.preloader.dll", "bepinex.dll", "bepinex.core.dll", "bepinex.unity.il2cpp.dll"}
+	loaderLaunchers  = []string{"winhttp.dll", "doorstop_config.ini", "run_bepinex.sh", "start_game_bepinex.sh"}
+)
 
 func ruleForFile(routes []thunderstore.InstallRule, name string) (thunderstore.InstallRule, bool) {
 	lower := strings.ToLower(name)
@@ -228,10 +249,10 @@ func IsLoader(files []string) bool {
 }
 
 // Extract unpacks a package archive into profileDir and returns the installed
-// files as slash-separated paths relative to profileDir. Config files are
-// written only if absent and are not returned, so user edits survive
-// reinstalls and uninstalls.
-func Extract(zipPath, profileDir, modID string, rules Rules) ([]string, error) {
+// files as slash-separated paths relative to profileDir. Config files are not
+// returned and, unless overwriteConfigs is set, only written if absent, so
+// user edits survive reinstalls and uninstalls.
+func Extract(zipPath, profileDir, modID string, rules Rules, overwriteConfigs bool) ([]string, error) {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return nil, err
@@ -245,7 +266,7 @@ func Extract(zipPath, profileDir, modID string, rules Rules) ([]string, error) {
 	var installed []string
 	for _, e := range entries {
 		target := filepath.Join(profileDir, filepath.FromSlash(e.dest))
-		if e.config {
+		if e.config && !overwriteConfigs {
 			if _, err := os.Stat(target); err == nil {
 				continue
 			}

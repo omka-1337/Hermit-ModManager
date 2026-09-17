@@ -122,19 +122,38 @@ var nonAlnum = regexp.MustCompile(`[^a-z0-9]`)
 
 func normalize(s string) string { return nonAlnum.ReplaceAllString(strings.ToLower(s), "") }
 
-// matchMod guesses which mod a plugin belongs to by comparing the plugin name
-// with mod names and DLL file names. BepInEx logs carry no file paths, so this
-// is best effort.
+// matchMod finds the mod a plugin belongs to. BepInEx logs name plugins as
+// "<name> <version>" from [BepInPlugin], which is matched against the plugins
+// read from each mod's assemblies; mods without that list fall back to
+// comparing names with the mod and its DLL files.
 func matchMod(mods []library.Mod, plugin string) string {
-	name := plugin
+	name, version := plugin, ""
 	if i := strings.LastIndexByte(plugin, ' '); i > 0 {
-		name = plugin[:i]
+		name, version = plugin[:i], plugin[i+1:]
 	}
+	for _, m := range mods {
+		for _, p := range m.Plugins {
+			if p.Name == name && (version == "" || p.Version == version) {
+				return m.ID
+			}
+		}
+	}
+	for _, m := range mods {
+		for _, p := range m.Plugins {
+			if p.Name == name {
+				return m.ID
+			}
+		}
+	}
+
 	want := normalize(name)
 	if want == "" {
 		return ""
 	}
 	for _, m := range mods {
+		if m.Plugins != nil && len(m.Plugins) > 0 {
+			continue
+		}
 		if normalize(m.Name) == want {
 			return m.ID
 		}

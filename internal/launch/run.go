@@ -16,6 +16,7 @@ import (
 
 	"hermit/internal/library"
 	"hermit/internal/modinstall"
+	"hermit/internal/platform"
 )
 
 // Wrapper runs a game command (Steam's %command%) with the active profile of
@@ -41,7 +42,9 @@ func (w *Wrapper) Run(args []string) int {
 	}
 
 	logOut := io.Writer(os.Stderr)
-	plan := launchPlan{command: command, env: os.Environ()}
+	// Inside the AppImage, give the game the environment Steam provided, not
+	// the one AppRun prepared for Hermit's bundled GTK and WebKit.
+	plan := launchPlan{command: command, env: platform.OriginalEnv()}
 	setupErr := w.setup(gameID, &plan, &logOut)
 	logger := log.New(logOut, "[hermit] ", log.LstdFlags)
 	switch {
@@ -261,6 +264,7 @@ func withDLLOverride(env []string, dll, mode string) []string {
 func runCommand(command, env []string, logger *log.Logger) int {
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Env = env
+	cmd.Dir = platform.OriginalWorkingDir()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		logger.Printf("start %s: %v", command[0], err)

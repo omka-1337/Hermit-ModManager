@@ -18,6 +18,18 @@ type Rules struct {
 	LoaderPackages map[string]string
 }
 
+// IsLoaderPackage reports whether a package id ("<author>-<name>") is a
+// BepInEx loader package. Without the schema list, names like BepInExPack or
+// BepInEx_Valheim_Full are recognised.
+func (r Rules) IsLoaderPackage(id string) bool {
+	if len(r.LoaderPackages) > 0 {
+		_, ok := r.LoaderPackages[strings.ToLower(id)]
+		return ok
+	}
+	name := strings.ToLower(id[strings.LastIndexByte(id, '-')+1:])
+	return strings.HasPrefix(name, "bepinexpack") || strings.HasPrefix(name, "bepinex_")
+}
+
 // DefaultRules are the rules shared by almost all BepInEx games, for games
 // that are not in the schema.
 func DefaultRules() Rules {

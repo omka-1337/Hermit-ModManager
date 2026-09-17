@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"hermit/internal/library"
+	"hermit/internal/plugininfo"
 	"hermit/internal/thunderstore"
 )
 
@@ -27,7 +28,11 @@ func filesLocation(m library.Mod, file string) string {
 // Sync recomputes which mods can be active and moves files of mods whose state
 // changed. A mod is active when it is enabled and every dependency is installed
 // and active, which cascades: disabling a library deactivates its dependants.
-func Sync(profileDir string, p *library.Profile) error {
+//
+// A dependency on any BepInEx loader package is satisfied by whichever loader
+// the profile has: mods from other communities often depend on the generic
+// BepInExPack while the game uses its own.
+func Sync(profileDir string, p *library.Profile, rules Rules) error {
 	byID := map[string]int{}
 	for i, m := range p.Mods {
 		byID[m.ID] = i
@@ -41,9 +46,22 @@ func Sync(profileDir string, p *library.Profile) error {
 		}
 	}
 
+	var loaders []int
+	for i, m := range p.Mods {
+		if rules.IsLoaderPackage(m.ID) || IsLoader(m.Files) {
+			loaders = append(loaders, i)
+		}
+	}
+	active := make([]bool, len(p.Mods))
+	satisfied := func(id string) bool {
+		if j, ok := byID[id]; ok {
+			return active[j]
+		}
+		return rules.IsLoaderPackage(id) && slices.ContainsFunc(loaders, func(k int) bool { return active[k] })
+	}
+
 	// Start from the enabled set and drop mods with inactive dependencies until
 	// nothing changes; dependency cycles among enabled mods stay active.
-	active := make([]bool, len(p.Mods))
 	for i, m := range p.Mods {
 		active[i] = m.Enabled
 	}
@@ -54,7 +72,7 @@ func Sync(profileDir string, p *library.Profile) error {
 				continue
 			}
 			for _, id := range depIDs[i] {
-				if j, ok := byID[id]; !ok || !active[j] {
+				if !satisfied(id) {
 					active[i], changed = false, true
 					break
 				}
@@ -67,7 +85,7 @@ func Sync(profileDir string, p *library.Profile) error {
 		m := &p.Mods[i]
 		m.UnmetDependencies = []string{}
 		for k, id := range depIDs[i] {
-			if j, ok := byID[id]; !ok || !active[j] {
+			if !satisfied(id) {
 				m.UnmetDependencies = append(m.UnmetDependencies, m.Dependencies[k])
 			}
 		}
@@ -141,4 +159,20 @@ func pruneDirs(profileDir string, files []string) {
 	for _, d := range sorted {
 		_ = os.Remove(filepath.Join(profileDir, filepath.FromSlash(d)))
 	}
+}
+
+// scanPlugins reads the BepInEx plugins of a mod from its assemblies. Native
+// libraries and unreadable files are skipped.
+func scanPlugins(profileDir string, m library.Mod) []plugininfo.Plugin {
+	plugins := []plugininfo.Plugin{}
+	for _, f := range m.Files {
+		if !strings.EqualFold(path.Ext(f), ".dll") {
+			continue
+		}
+		found, err := plugininfo.Read(filepath.Join(profileDir, filepath.FromSlash(filesLocation(m, f))))
+		if err == nil {
+			plugins = append(plugins, found...)
+		}
+	}
+	return plugins
 }

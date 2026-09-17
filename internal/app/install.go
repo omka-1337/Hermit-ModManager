@@ -5,6 +5,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"hermit/internal/github"
 	"hermit/internal/library"
 	"hermit/internal/modinstall"
 	"hermit/internal/thunderstore"
@@ -15,10 +16,11 @@ const InstallProgressEvent = "install:progress"
 
 type InstallService struct {
 	installer *modinstall.Installer
+	github    *github.Client
 }
 
-func NewInstallService(installer *modinstall.Installer) *InstallService {
-	return &InstallService{installer: installer}
+func NewInstallService(installer *modinstall.Installer, gh *github.Client) *InstallService {
+	return &InstallService{installer: installer, github: gh}
 }
 
 func emitProgress(p modinstall.Progress) {
@@ -64,4 +66,73 @@ func (s *InstallService) CheckUpdates(ctx context.Context, gameID, profileID str
 // UpdateAll updates every outdated mod, emitting InstallProgressEvent.
 func (s *InstallService) UpdateAll(ctx context.Context, gameID, profileID string) (modinstall.UpdateResult, error) {
 	return s.installer.UpdateAll(ctx, gameID, profileID, emitProgress)
+}
+
+// InstallModpack creates a new profile from a Thunderstore modpack.
+func (s *InstallService) InstallModpack(ctx context.Context, gameID, namespace, name, version, profileName string) (library.Profile, error) {
+	ref := thunderstore.PackageRef{Namespace: namespace, Name: name, Version: version}
+	return s.installer.InstallAsNewProfile(ctx, gameID, profileName, ref, emitProgress)
+}
+
+// UpdateMod updates one Thunderstore or GitHub mod to its latest version.
+func (s *InstallService) UpdateMod(ctx context.Context, gameID, profileID, modID string) (library.Profile, error) {
+	return s.installer.UpdateMod(ctx, gameID, profileID, modID, emitProgress)
+}
+
+// InspectFile reads a .zip or .dll mod file and suggests its author, name and version.
+func (s *InstallService) InspectFile(path string) (modinstall.LocalPackage, error) {
+	return modinstall.InspectFile(path)
+}
+
+// PlanFile reports conflicts of installing a local or downloaded mod file.
+func (s *InstallService) PlanFile(ctx context.Context, gameID, profileID string, pkg modinstall.LocalPackage) (modinstall.InstallPlan, error) {
+	return s.installer.PlanFile(ctx, gameID, profileID, pkg)
+}
+
+// InstallFile installs a local mod file.
+func (s *InstallService) InstallFile(ctx context.Context, gameID, profileID string, pkg modinstall.LocalPackage, replaceConflicts bool) (library.Profile, error) {
+	return s.installer.InstallFile(ctx, gameID, profileID, pkg, replaceConflicts, emitProgress)
+}
+
+type GitHubRepo struct {
+	Owner    string           `json:"owner"`
+	Repo     string           `json:"repo"`
+	Releases []github.Release `json:"releases"`
+}
+
+// GitHubReleases lists the releases of a repository given as owner/repo or URL.
+func (s *InstallService) GitHubReleases(ctx context.Context, input string) (GitHubRepo, error) {
+	owner, repo, err := github.ParseRepo(input)
+	if err != nil {
+		return GitHubRepo{}, err
+	}
+	releases, err := s.github.Releases(ctx, owner, repo)
+	if err != nil {
+		return GitHubRepo{}, err
+	}
+	return GitHubRepo{Owner: owner, Repo: repo, Releases: releases}, nil
+}
+
+// DownloadGitHubAsset downloads a release file and suggests how to name the
+// mod: from its manifest if it has one, otherwise after the repository and tag.
+func (s *InstallService) DownloadGitHubAsset(ctx context.Context, owner, repo, tag string, asset github.Asset) (modinstall.LocalPackage, error) {
+	path, err := s.github.Download(ctx, owner, repo, tag, asset, nil)
+	if err != nil {
+		return modinstall.LocalPackage{}, err
+	}
+	pkg, err := modinstall.InspectFile(path)
+	if err != nil {
+		return modinstall.LocalPackage{}, err
+	}
+	if !pkg.HasManifest {
+		pkg.Author = modinstall.SanitizeName(owner, "GitHub")
+		pkg.Name = modinstall.SanitizeName(repo, pkg.Name)
+		pkg.Version = modinstall.NormalizeVersion(tag)
+	}
+	return pkg, nil
+}
+
+// InstallGitHub installs a downloaded release file as a mod that can be updated from GitHub.
+func (s *InstallService) InstallGitHub(ctx context.Context, gameID, profileID string, pkg modinstall.LocalPackage, owner, repo, tag, asset string, replaceConflicts bool) (library.Profile, error) {
+	return s.installer.InstallGitHub(ctx, gameID, profileID, pkg, owner, repo, tag, asset, replaceConflicts, emitProgress)
 }

@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  appimage:
+    name: Build AppImage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: build/linux/appimage/deps-ubuntu.sh
+
+      - name: Build AppImage
+        run: build/linux/appimage/build-release.sh "${GITHUB_REF_NAME#v}" dist
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/Hermit-*.AppImage \
+            --draft --verify-tag --notes "" \
+            --title "${GITHUB_REF_NAME#v}"

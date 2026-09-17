@@ -11,6 +11,7 @@ import (
 
 	"hermit/internal/library"
 	"hermit/internal/modinstall"
+	"hermit/internal/plugininfo"
 )
 
 func mkfile(t *testing.T, path string) {
@@ -206,7 +207,13 @@ func TestMatchMod(t *testing.T) {
 		{ID: "notnotnotswipez-MoreCompany", Name: "MoreCompany", Files: []string{"BepInEx/plugins/notnotnotswipez-MoreCompany/MoreCompany.dll"}},
 		{ID: "a-Suits", Name: "More_Suits", Files: []string{"BepInEx/plugins/a-Suits/moresuits/MoreSuits.dll"}},
 	}
-	cases := map[string]string{"MoreCompany 1.14.0": "notnotnotswipez-MoreCompany", "More Suits 1.5.2": "a-Suits", "Unknown 1.0": ""}
+	mods = append(mods, library.Mod{ID: "sunnobunno-YippeeMod", Name: "YippeeMod", Plugins: []plugininfo.Plugin{{GUID: "sunnobunno.YippeeMod", Name: "Yippee tbh mod", Version: "1.2.4"}}})
+	cases := map[string]string{
+		"MoreCompany 1.14.0":   "notnotnotswipez-MoreCompany",
+		"More Suits 1.5.2":     "a-Suits",
+		"Yippee tbh mod 1.2.4": "sunnobunno-YippeeMod", // only the plugin name matches
+		"Unknown 1.0":          "",
+	}
 	for plugin, want := range cases {
 		if got := matchMod(mods, plugin); got != want {
 			t.Errorf("%q: got %q want %q", plugin, got, want)
