@@ -213,3 +213,51 @@ func TestMatchMod(t *testing.T) {
 		}
 	}
 }
+
+func TestWrapperRunNative(t *testing.T) {
+	tmp := t.TempDir()
+	lib, _ := library.New(filepath.Join(tmp, "lib"), nil)
+	gamePath := filepath.Join(tmp, "game")
+	mkfile(t, filepath.Join(gamePath, "UnityPlayer.so"))
+	mkfile(t, filepath.Join(gamePath, "valheim.x86_64"))
+	os.MkdirAll(filepath.Join(gamePath, "valheim_Data/Managed"), 0o755)
+	game, err := lib.AddGame("Valheim", gamePath)
+	if err != nil || game.Runtime != library.RuntimeNative {
+		t.Fatalf("add game: %+v %v", game, err)
+	}
+	profileDir, _ := lib.ProfileDir(game.ID, game.ActiveProfile)
+	mkfile(t, filepath.Join(profileDir, "BepInEx/core/BepInEx.Preloader.dll"))
+	report := filepath.Join(tmp, "report")
+	// Written without the executable bit, as unpacked from a zip.
+	script := "#!/bin/sh\necho \"$@\" > '" + report + "'\nprintf '[Info   :   BepInEx] Loading [A 1.0]\\n' > \"$(dirname \"$0\")/BepInEx/LogOutput.log\"\n"
+	if err := os.WriteFile(filepath.Join(profileDir, "start_game_bepinex.sh"), []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	w := &Wrapper{Lib: lib, Installer: modinstall.NewInstaller(lib, nil, nil)}
+	code := w.Run([]string{"--game", game.ID, "--", "reaper", "SteamLaunch", "AppId=892970", "--", "./valheim.x86_64", "-console"})
+	if code != 0 {
+		t.Fatalf("exit code %d", code)
+	}
+	if data, _ := os.ReadFile(report); string(data) != "reaper SteamLaunch AppId=892970 -- ./valheim.x86_64 -console\n" {
+		t.Errorf("launcher got %q", data)
+	}
+	entries, _ := os.ReadDir(gamePath)
+	if len(entries) != 3 {
+		t.Errorf("native launch must not touch the game folder: %v", entries)
+	}
+	dataDir, _ := lib.GameDataDir(game.ID)
+	if rep, _ := ReadReport(dataDir, game.ActiveProfile); rep == nil || !rep.BepInExStarted {
+		t.Errorf("report: %+v", rep)
+	}
+
+	// Without an active loader the game starts vanilla.
+	os.RemoveAll(filepath.Join(profileDir, "BepInEx/core"))
+	os.Remove(report)
+	if code := w.Run([]string{"--game", game.ID, "--", "true"}); code != 0 {
+		t.Errorf("vanilla exit code %d", code)
+	}
+	if _, err := os.Stat(report); err == nil {
+		t.Error("launcher must not run without BepInEx")
+	}
+}

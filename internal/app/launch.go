@@ -45,8 +45,8 @@ func (s *LaunchService) GetLaunchInfo(gameID string) (LaunchInfo, error) {
 	switch {
 	case game.SteamAppID == "":
 		info.Reason = "Only Steam games can be launched for now."
-	case game.Runtime != library.RuntimeProton:
-		info.Reason = "Only games running through Proton are supported for now."
+	case game.Runtime == library.RuntimeUnknown:
+		info.Reason = "Could not tell whether the game runs natively or through Proton."
 	default:
 		info.Supported = true
 	}

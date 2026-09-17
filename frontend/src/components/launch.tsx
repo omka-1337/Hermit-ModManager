@@ -90,8 +90,9 @@ export function LaunchSetup({ game }: { game: Game }) {
       </div>
       <p className="text-xs text-zinc-400">
         In Steam open the game&apos;s Properties → General → Launch Options and paste this. The active profile is then
-        loaded whenever the game starts, including from Steam directly. The game folder only contains links to the
-        profile while the game is running.
+        loaded whenever the game starts, including from Steam directly. The game folder is left untouched: Proton
+        games get links to the profile only while running, native Linux games load BepInEx straight from the
+        profile.
       </p>
       <div className="flex gap-2">
         <code className="flex-1 truncate rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-300 select-text">

@@ -41,21 +41,24 @@ func (w *Wrapper) Run(args []string) int {
 	}
 
 	logOut := io.Writer(os.Stderr)
-	env := os.Environ()
-	session, cleanup, setupErr := w.setup(gameID, command, &logOut, &env)
+	plan := launchPlan{command: command, env: os.Environ()}
+	setupErr := w.setup(gameID, &plan, &logOut)
 	logger := log.New(logOut, "[bepinexmodmanager] ", log.LstdFlags)
-	if setupErr != nil {
+	switch {
+	case setupErr != nil:
 		logger.Printf("launching without mods: %v", setupErr)
 		if w.Notify != nil {
 			w.Notify("Mods were not loaded", setupErr.Error())
 		}
-	} else if session != nil && len(session.Links) == 0 {
-		logger.Printf("profile %s has no active BepInEx, launching without mods", session.ProfileID)
+	case !plan.modded:
+		logger.Printf("profile has no active BepInEx, launching without mods")
+	default:
+		logger.Printf("launching with profile %s: %q", plan.profileID, plan.command)
 	}
 
-	code := runCommand(command, env, logger)
-	if cleanup != nil {
-		if err := cleanup(); err != nil {
+	code := runCommand(plan.command, plan.env, logger)
+	if plan.cleanup != nil {
+		if err := plan.cleanup(); err != nil {
 			logger.Printf("cleanup: %v", err)
 		}
 	}
@@ -84,33 +87,49 @@ func parseArgs(args []string) (gameID string, command []string, err error) {
 	return "", nil, errors.New(`usage: run [--game <id>] -- <command...> (in Steam: run -- %command%)`)
 }
 
-// setup links the active profile and prepares the environment. It returns a
-// cleanup func that must run after the game exits.
-func (w *Wrapper) setup(gameID string, command []string, logOut *io.Writer, env *[]string) (*Session, func() error, error) {
+// launchPlan is what the wrapper runs. setup fills it in only when mods can be
+// loaded; on error the original command runs unchanged.
+type launchPlan struct {
+	command   []string
+	env       []string
+	modded    bool
+	profileID string
+	// cleanup runs after the game exits.
+	cleanup func() error
+}
+
+// nativeLaunchers are scripts that BepInEx packs for native Linux games ship in
+// the profile root, in the order r2modman tries them. They take Steam's
+// %command%, find the game executable in it and load BepInEx from their own
+// directory, so nothing needs to be linked into the game folder.
+var nativeLaunchers = []string{"run_bepinex.sh", "start_game_bepinex.sh"}
+
+// setup prepares the active profile of the game for launching.
+func (w *Wrapper) setup(gameID string, plan *launchPlan, logOut *io.Writer) error {
 	if w.Lib == nil || w.Installer == nil {
-		return nil, nil, errors.New("mod manager data could not be opened")
+		return errors.New("mod manager data could not be opened")
 	}
-	game, err := w.findGame(gameID, command)
+	game, err := w.findGame(gameID, plan.command)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	dataDir, err := w.Lib.GameDataDir(game.ID)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	if f, err := os.Create(filepath.Join(dataDir, "launch.log")); err == nil {
 		*logOut = io.MultiWriter(os.Stderr, f)
 	}
-
-	if game.Runtime != library.RuntimeProton {
-		return nil, nil, fmt.Errorf("%s: only games running through Proton are supported for now", game.Name)
+	if game.Runtime != library.RuntimeProton && game.Runtime != library.RuntimeNative {
+		return fmt.Errorf("%s: could not tell whether the game runs natively or through Proton", game.Name)
 	}
+
 	prev, err := ReadSession(dataDir)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	if prev.Running() {
-		return nil, nil, fmt.Errorf("%s is already running (pid %d)", game.Name, prev.PID)
+		return fmt.Errorf("%s is already running (pid %d)", game.Name, prev.PID)
 	}
 	if prev != nil {
 		// Left over from a session that did not exit cleanly.
@@ -119,32 +138,77 @@ func (w *Wrapper) setup(gameID string, command []string, logOut *io.Writer, env 
 
 	profile, err := w.Installer.Refresh(game.ID, game.ActiveProfile)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 	profileDir, err := w.Lib.ProfileDir(game.ID, profile.ID)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	links, err := LinkProfile(game.Path, profileDir, w.Lib.Root())
-	if err != nil {
-		return nil, nil, err
-	}
-	session := Session{ProfileID: profile.ID, PID: os.Getpid(), StartedAt: time.Now(), Links: links}
-	if err := writeSession(dataDir, session); err != nil {
-		Unlink(game.Path, links, w.Lib.Root())
-		return nil, nil, err
-	}
-	if len(links) > 0 {
-		*env = withDLLOverride(*env, "winhttp", "n,b")
-	}
-	cleanup := func() error {
-		var reportErr error
-		if len(links) > 0 {
-			reportErr = SaveReport(dataDir, BuildReport(profileDir, session, profile.Mods))
+
+	session := Session{ProfileID: profile.ID, PID: os.Getpid(), StartedAt: time.Now(), Links: []string{}}
+	command, env := plan.command, plan.env
+	modded := false
+	if game.Runtime == library.RuntimeNative {
+		launcher, err := nativeLauncher(profileDir)
+		if err != nil {
+			return err
 		}
-		return errors.Join(reportErr, Unlink(game.Path, links, w.Lib.Root()), os.Remove(sessionPath(dataDir)))
+		if launcher != "" {
+			command = append([]string{launcher}, command...)
+			modded = true
+		}
+	} else {
+		session.Links, err = LinkProfile(game.Path, profileDir, w.Lib.Root())
+		if err != nil {
+			return err
+		}
+		if len(session.Links) > 0 {
+			env = withDLLOverride(env, "winhttp", "n,b")
+			modded = true
+		}
 	}
-	return &session, cleanup, nil
+	if err := writeSession(dataDir, session); err != nil {
+		Unlink(game.Path, session.Links, w.Lib.Root())
+		return err
+	}
+
+	*plan = launchPlan{
+		command:   command,
+		env:       env,
+		modded:    modded,
+		profileID: profile.ID,
+		cleanup: func() error {
+			var reportErr error
+			if modded {
+				reportErr = SaveReport(dataDir, BuildReport(profileDir, session, profile.Mods))
+			}
+			return errors.Join(reportErr, Unlink(game.Path, session.Links, w.Lib.Root()), os.Remove(sessionPath(dataDir)))
+		},
+	}
+	return nil
+}
+
+// nativeLauncher returns the BepInEx launcher script of a profile, made
+// executable, or "" when the profile has no active loader.
+func nativeLauncher(profileDir string) (string, error) {
+	if _, err := os.Stat(filepath.Join(profileDir, "BepInEx", "core")); err != nil {
+		return "", nil
+	}
+	for _, name := range nativeLaunchers {
+		script := filepath.Join(profileDir, name)
+		fi, err := os.Stat(script)
+		if err != nil {
+			continue
+		}
+		// Archives usually lose the executable bit.
+		if fi.Mode()&0o111 != 0o111 {
+			if err := os.Chmod(script, fi.Mode()|0o755); err != nil {
+				return "", err
+			}
+		}
+		return script, nil
+	}
+	return "", errors.New("the installed BepInEx pack has no Linux launcher (run_bepinex.sh or start_game_bepinex.sh); this game may only support BepInEx through Proton")
 }
 
 // findGame resolves the game from --game, Steam's SteamAppId variable, or the
