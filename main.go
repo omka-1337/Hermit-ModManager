@@ -11,6 +11,7 @@ import (
 	"bepinexmodmanager/internal/app"
 	"bepinexmodmanager/internal/library"
 	"bepinexmodmanager/internal/modinstall"
+	"bepinexmodmanager/internal/platform"
 	"bepinexmodmanager/internal/settings"
 	"bepinexmodmanager/internal/steam"
 	"bepinexmodmanager/internal/thunderstore"
@@ -24,6 +25,8 @@ func init() {
 }
 
 func main() {
+	platform.ConfigureRendering()
+
 	root := filepath.Join(xdg.DataHome, app.ID)
 	lib, err := library.New(root, steam.DefaultRoots())
 	if err != nil {
