@@ -24,7 +24,7 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
   return (
     <div className="flex h-full">
       <aside className="flex w-[72px] shrink-0 flex-col items-center border-r border-zinc-800 bg-zinc-900 py-3">
-        <nav className="flex w-full flex-1 flex-col items-center gap-2 overflow-y-auto">
+        <nav className="flex w-full flex-1 flex-col items-center gap-2 overflow-y-auto py-1">
           {games.map((g) => {
             const active = g.id === selectedId && !showSettings;
             return (

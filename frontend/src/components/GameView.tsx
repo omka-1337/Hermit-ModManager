@@ -84,7 +84,7 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
           <div className="flex items-center gap-2 text-sm text-zinc-500">
             <RuntimeBadge runtime={game.runtime} />
             <BackendBadge backend={game.backend} />
-            <span className="truncate select-text">{game.path}</span>
+            <span className="min-w-0 truncate select-text">{game.path}</span>
           </div>
         </div>
         <div className="flex items-start gap-2">

@@ -86,7 +86,7 @@ export default function GamePicker({ onAdded, actions }: Props) {
                   <div className="flex items-center gap-1.5">
                     <RuntimeBadge runtime={c.detection.runtime} />
                     <BackendBadge backend={c.detection.backend} />
-                    <span className="truncate text-xs text-zinc-500" title={c.path}>
+                    <span className="min-w-0 truncate text-xs text-zinc-500" title={c.path}>
                       {c.path}
                     </span>
                   </div>

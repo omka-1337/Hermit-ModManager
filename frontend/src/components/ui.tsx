@@ -33,7 +33,7 @@ const runtimeLabels: Partial<Record<Runtime, string>> = {
 };
 
 export function RuntimeBadge({ runtime }: { runtime: Runtime }) {
-  return <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">{runtimeLabels[runtime] ?? runtimeLabels[Runtime.RuntimeUnknown]}</span>;
+  return <span className="shrink-0 rounded bg-zinc-800 px-2 py-0.5 text-xs whitespace-nowrap text-zinc-300">{runtimeLabels[runtime] ?? runtimeLabels[Runtime.RuntimeUnknown]}</span>;
 }
 
 const backendLabels: Partial<Record<Backend, string>> = {
@@ -43,7 +43,7 @@ const backendLabels: Partial<Record<Backend, string>> = {
 
 export function BackendBadge({ backend }: { backend: Backend }) {
   const label = backendLabels[backend];
-  return label ? <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">{label}</span> : null;
+  return label ? <span className="shrink-0 rounded bg-zinc-800 px-2 py-0.5 text-xs whitespace-nowrap text-zinc-300">{label}</span> : null;
 }
 
 type ToggleProps = {
@@ -76,7 +76,7 @@ export function Toggle({ checked, disabled, title, onChange }: ToggleProps) {
 }
 
 export function NsfwBadge() {
-  return <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">NSFW</span>;
+  return <span className="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-red-400">NSFW</span>;
 }
 
 export function ErrorText({ children }: { children: ReactNode }) {
