@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"hermit/internal/library"
+	"hermit/internal/plugininfo"
 	"hermit/internal/thunderstore"
 )
 
@@ -158,4 +159,20 @@ func pruneDirs(profileDir string, files []string) {
 	for _, d := range sorted {
 		_ = os.Remove(filepath.Join(profileDir, filepath.FromSlash(d)))
 	}
+}
+
+// scanPlugins reads the BepInEx plugins of a mod from its assemblies. Native
+// libraries and unreadable files are skipped.
+func scanPlugins(profileDir string, m library.Mod) []plugininfo.Plugin {
+	plugins := []plugininfo.Plugin{}
+	for _, f := range m.Files {
+		if !strings.EqualFold(path.Ext(f), ".dll") {
+			continue
+		}
+		found, err := plugininfo.Read(filepath.Join(profileDir, filepath.FromSlash(filesLocation(m, f))))
+		if err == nil {
+			plugins = append(plugins, found...)
+		}
+	}
+	return plugins
 }

@@ -1,5 +1,7 @@
 package library
 
+import "hermit/internal/plugininfo"
+
 type Runtime string
 
 const (
@@ -78,6 +80,9 @@ type Mod struct {
 	Dependencies []string `json:"dependencies"`
 	// Files are slash-separated paths relative to the profile directory.
 	Files []string `json:"files"`
+	// Plugins are the BepInEx plugins found in the mod's assemblies; nil
+	// until they have been scanned.
+	Plugins []plugininfo.Plugin `json:"plugins"`
 }
 
 type ModSourceType string

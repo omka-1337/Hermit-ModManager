@@ -738,7 +738,7 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 		if deps == nil {
 			deps = []string{}
 		}
-		prof.Mods = append(prof.Mods, library.Mod{
+		mod := library.Mod{
 			ID:      p.ref.ID(),
 			Name:    p.ref.Name,
 			Author:  p.ref.Namespace,
@@ -752,7 +752,9 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			},
 			Dependencies: deps,
 			Files:        files,
-		})
+		}
+		mod.Plugins = scanPlugins(profileDir, mod)
+		prof.Mods = append(prof.Mods, mod)
 		slices.SortFunc(prof.Mods, func(a, b library.Mod) int { return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)) })
 		return Sync(profileDir, prof, p.rules), nil
 	})
@@ -808,6 +810,12 @@ func (in *Installer) Refresh(gameID, profileID string) (library.Profile, error) 
 		return library.Profile{}, err
 	}
 	return in.updateProfile(gameID, profileID, func(p *library.Profile) (error, error) {
+		// Mods installed before plugin scanning existed have no plugin list yet.
+		for i := range p.Mods {
+			if p.Mods[i].Plugins == nil {
+				p.Mods[i].Plugins = scanPlugins(profileDir, p.Mods[i])
+			}
+		}
 		return Sync(profileDir, p, rules), nil
 	})
 }
