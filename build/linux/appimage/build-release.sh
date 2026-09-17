@@ -21,7 +21,8 @@ echo "==> Building Hermit $VERSION"
 APPDIR="$WORK/Hermit.AppDir"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/apprun-hooks"
 cp "$WORK/hermit" "$APPDIR/usr/bin/hermit"
-cp "$ROOT/build/appicon.png" "$WORK/hermit.png"
+# linuxdeploy accepts icons up to 512x512.
+cp "$ROOT/build/linux/appimage/hermit.png" "$WORK/hermit.png"
 cat > "$WORK/hermit.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
