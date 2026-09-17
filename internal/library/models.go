@@ -18,6 +18,14 @@ type Game struct {
 	ActiveProfile string  `json:"activeProfile"`
 }
 
+// GameCandidate is what the add-game form is prefilled with after picking a folder.
+type GameCandidate struct {
+	Path         string  `json:"path"`
+	Name         string  `json:"name"`
+	Runtime      Runtime `json:"runtime"`
+	AlreadyAdded bool    `json:"alreadyAdded"`
+}
+
 const ProfileSchemaVersion = 1
 
 // Profile is stored in profiles/<id>/profile.json and is meant to be shareable:

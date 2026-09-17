@@ -30,6 +30,13 @@ export function GetProfile(gameID: string, profileID: string): $CancellablePromi
 }
 
 /**
+ * InspectGamePath suggests a name and runtime for a game folder without adding it.
+ */
+export function InspectGamePath(path: string): $CancellablePromise<$models.GameCandidate> {
+    return $Call.ByID(1059388653, path);
+}
+
+/**
  * ListGames returns all games sorted by name.
  */
 export function ListGames(): $CancellablePromise<$models.Game[] | null> {

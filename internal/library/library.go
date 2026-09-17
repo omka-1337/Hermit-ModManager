@@ -83,6 +83,29 @@ func (l *Library) GetGame(id string) (Game, error) {
 	return l.loadGame(id)
 }
 
+// InspectGamePath suggests a name and runtime for a game folder without adding it.
+func (l *Library) InspectGamePath(path string) (GameCandidate, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return GameCandidate{}, err
+	}
+	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
+		return GameCandidate{}, ErrInvalidPath
+	}
+	exe, runtime := detectUnityGame(path)
+	c := GameCandidate{Path: path, Name: exe, Runtime: runtime}
+	if c.Name == "" {
+		c.Name = filepath.Base(path)
+	}
+	if _, err := l.findGameByPath(path); err == nil {
+		c.AlreadyAdded = true
+	}
+	return c, nil
+}
+
 // AddGame registers a game installed at path and creates its default profile.
 // The game directory itself is only inspected, never modified.
 func (l *Library) AddGame(name, path string) (Game, error) {
@@ -100,14 +123,12 @@ func (l *Library) AddGame(name, path string) (Game, error) {
 		return Game{}, ErrInvalidPath
 	}
 
+	if _, err := l.findGameByPath(path); err == nil {
+		return Game{}, fmt.Errorf("game at %s: %w", path, ErrAlreadyExists)
+	}
 	ids, err := listDirs(l.gamesDir())
 	if err != nil {
 		return Game{}, err
-	}
-	for _, id := range ids {
-		if g, err := l.loadGame(id); err == nil && g.Path == path {
-			return Game{}, fmt.Errorf("game at %s: %w", path, ErrAlreadyExists)
-		}
 	}
 
 	g := Game{
@@ -292,6 +313,19 @@ func (l *Library) listProfiles(gameID string) ([]Profile, error) {
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].Name < profiles[j].Name })
 	return profiles, nil
+}
+
+func (l *Library) findGameByPath(path string) (Game, error) {
+	ids, err := listDirs(l.gamesDir())
+	if err != nil {
+		return Game{}, err
+	}
+	for _, id := range ids {
+		if g, err := l.loadGame(id); err == nil && g.Path == path {
+			return g, nil
+		}
+	}
+	return Game{}, ErrNotFound
 }
 
 func (l *Library) loadGame(id string) (Game, error) {

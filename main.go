@@ -10,13 +10,15 @@ import (
 
 	"bepinexmodmanager/internal/app"
 	"bepinexmodmanager/internal/library"
+	"bepinexmodmanager/internal/settings"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	lib, err := library.New(filepath.Join(xdg.DataHome, app.ID))
+	root := filepath.Join(xdg.DataHome, app.ID)
+	lib, err := library.New(root)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,6 +29,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(app.NewInfoService()),
 			application.NewService(lib),
+			application.NewService(settings.NewStore(root)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

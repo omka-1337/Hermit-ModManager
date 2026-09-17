@@ -13,6 +13,16 @@ export interface Game {
     "activeProfile": string;
 }
 
+/**
+ * GameCandidate is what the add-game form is prefilled with after picking a folder.
+ */
+export interface GameCandidate {
+    "path": string;
+    "name": string;
+    "runtime": Runtime;
+    "alreadyAdded": boolean;
+}
+
 export interface Mod {
     "id": string;
     "name": string;

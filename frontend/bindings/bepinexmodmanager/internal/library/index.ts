@@ -13,6 +13,7 @@ export {
 
 export type {
     Game,
+    GameCandidate,
     Mod,
     ModSource,
     Profile

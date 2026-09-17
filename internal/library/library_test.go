@@ -158,6 +158,31 @@ func TestRejectsPathTraversalIDs(t *testing.T) {
 	}
 }
 
+func TestInspectGamePath(t *testing.T) {
+	lib := newTestLibrary(t)
+	path := fakeGame(t, "Lethal Company_Data/", "Lethal Company.exe")
+
+	c, err := lib.InspectGamePath(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Name != "Lethal Company" || c.Runtime != RuntimeProton || c.AlreadyAdded {
+		t.Fatalf("candidate: %+v", c)
+	}
+
+	if _, err := lib.AddGame(c.Name, path); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ = lib.InspectGamePath(path); !c.AlreadyAdded {
+		t.Error("expected AlreadyAdded")
+	}
+
+	other := fakeGame(t)
+	if c, _ = lib.InspectGamePath(other); c.Name != filepath.Base(other) {
+		t.Errorf("fallback name: %q", c.Name)
+	}
+}
+
 func TestDetectRuntime(t *testing.T) {
 	cases := map[Runtime][]string{
 		RuntimeProton:  {"Game_Data/", "Game.exe"},

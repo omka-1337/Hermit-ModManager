@@ -1,51 +1,53 @@
 import { useEffect, useState } from "react";
-import { InfoService } from "../bindings/bepinexmodmanager/internal/app";
-import type { AppInfo } from "../bindings/bepinexmodmanager/internal/app";
+import { errorMessage, Game, Library, SettingsStore } from "./api";
+import Main from "./screens/Main";
+import Setup from "./screens/Setup";
 
-type Page = "games" | "mods" | "settings";
-
-const pages: { id: Page; label: string }[] = [
-  { id: "games", label: "Games" },
-  { id: "mods", label: "Mods" },
-  { id: "settings", label: "Settings" },
-];
+type State = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; setup: boolean };
 
 function App() {
-  const [page, setPage] = useState<Page>("games");
-  const [info, setInfo] = useState<AppInfo | null>(null);
+  const [state, setState] = useState<State>({ status: "loading" });
+  const [games, setGames] = useState<Game[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // reloadGames refreshes the list; selectId overrides the selection (null clears it).
+  const reloadGames = async (selectId?: string | null) => {
+    const list = (await Library.ListGames()) ?? [];
+    setGames(list);
+    setSelectedId((current) => {
+      const want = selectId === undefined ? current : selectId;
+      return list.some((g) => g.id === want) ? want : (list[0]?.id ?? null);
+    });
+  };
 
   useEffect(() => {
-    InfoService.GetInfo().then(setInfo).catch(console.error);
+    Promise.all([SettingsStore.Get(), reloadGames()])
+      .then(([settings]) => setState({ status: "ready", setup: !settings.setupCompleted }))
+      .catch((err) => setState({ status: "error", message: errorMessage(err) }));
   }, []);
 
-  return (
-    <div className="flex h-full">
-      <aside className="flex w-56 flex-col border-r border-zinc-800 bg-zinc-900">
-        <div className="px-4 py-5 text-lg font-semibold">BepInEx Mod Manager</div>
-        <nav className="flex flex-col gap-1 px-2">
-          {pages.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPage(p.id)}
-              className={`rounded px-3 py-2 text-left text-sm ${
-                page === p.id ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/60"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </nav>
-        <div className="mt-auto px-4 py-3 text-xs text-zinc-500">
-          {info ? `v${info.version} · ${info.os}/${info.arch}` : "…"}
-        </div>
-      </aside>
+  const finishSetup = async (game?: Game) => {
+    try {
+      await SettingsStore.CompleteSetup();
+      await reloadGames(game?.id);
+      setState({ status: "ready", setup: false });
+    } catch (err) {
+      setState({ status: "error", message: errorMessage(err) });
+    }
+  };
 
-      <main className="flex-1 overflow-auto p-6">
-        <h1 className="mb-4 text-2xl font-semibold capitalize">{page}</h1>
-        <p className="text-zinc-400">Coming soon.</p>
-      </main>
-    </div>
-  );
+  switch (state.status) {
+    case "loading":
+      return null;
+    case "error":
+      return <div className="p-8 text-red-400">Failed to load: {state.message}</div>;
+    case "ready":
+      return state.setup ? (
+        <Setup onFinish={finishSetup} />
+      ) : (
+        <Main games={games} selectedId={selectedId} onSelect={setSelectedId} onGamesChanged={reloadGames} />
+      );
+  }
 }
 
 export default App;
