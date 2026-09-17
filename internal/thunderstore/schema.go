@@ -3,7 +3,7 @@ package thunderstore
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,23 +54,9 @@ func (c *Client) Schema(ctx context.Context) (*Ecosystem, error) {
 	if c.schema != nil && time.Since(c.schemaFetched) < schemaTTL {
 		return c.schema, nil
 	}
-	cachePath := filepath.Join(c.cacheDir, "ecosystem-schema.json")
-	cached, cachedAt := readCachedSchema(cachePath)
-	if cached != nil && time.Since(cachedAt) < schemaTTL {
-		c.schema, c.schemaFetched = cached, cachedAt
-		return cached, nil
-	}
-
-	body, err := c.get(ctx, "/api/experimental/schema/dev/latest/", nil)
-	if err != nil {
-		if cached != nil {
-			c.schema, c.schemaFetched = cached, time.Now()
-			return cached, nil
-		}
-		return nil, err
-	}
-	defer body.Close()
-	data, err := io.ReadAll(body)
+	data, err := c.cachedFetch(ctx, "ecosystem-schema.json", c.baseURL+"/api/experimental/schema/dev/latest/", func(b []byte) error {
+		return json.Unmarshal(b, &Ecosystem{})
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -78,27 +64,37 @@ func (c *Client) Schema(ctx context.Context) (*Ecosystem, error) {
 	if err := json.Unmarshal(data, &schema); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(c.cacheDir, 0o755); err == nil {
-		_ = os.WriteFile(cachePath, data, 0o644)
-	}
 	c.schema, c.schemaFetched = &schema, time.Now()
 	return &schema, nil
 }
 
-func readCachedSchema(path string) (*Ecosystem, time.Time) {
-	fi, err := os.Stat(path)
+// cachedFetch returns a document from the disk cache if younger than
+// schemaTTL, otherwise downloads it. validate rejects broken downloads. When
+// the download fails, a stale cached copy is returned if there is one.
+func (c *Client) cachedFetch(ctx context.Context, cacheName, fullURL string, validate func([]byte) error) ([]byte, error) {
+	cachePath := filepath.Join(c.cacheDir, cacheName)
+	cached, cacheErr := os.ReadFile(cachePath)
+	if cacheErr == nil && validate(cached) != nil {
+		cached, cacheErr = nil, errors.New("invalid cache")
+	}
+	if fi, err := os.Stat(cachePath); cacheErr == nil && err == nil && time.Since(fi.ModTime()) < schemaTTL {
+		return cached, nil
+	}
+
+	data, err := c.fetchURL(ctx, fullURL)
+	if err == nil {
+		err = validate(data)
+	}
 	if err != nil {
-		return nil, time.Time{}
+		if cacheErr == nil {
+			return cached, nil
+		}
+		return nil, err
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, time.Time{}
+	if err := os.MkdirAll(c.cacheDir, 0o755); err == nil {
+		_ = os.WriteFile(cachePath, data, 0o644)
 	}
-	var schema Ecosystem
-	if json.Unmarshal(data, &schema) != nil {
-		return nil, time.Time{}
-	}
-	return &schema, fi.ModTime()
+	return data, nil
 }
 
 // FindCommunity returns the BepInEx community for a game, matched by Steam app

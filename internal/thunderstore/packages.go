@@ -117,7 +117,8 @@ func (c *Client) Filters(ctx context.Context, community string) (Filters, error)
 }
 
 // ListPackages returns one page (20 packages) of a community listing.
-// Deprecated packages are excluded; NSFW ones only with IncludeNSFW.
+// Deprecated packages and packages on the exclusion list are left out; NSFW
+// ones are included only with IncludeNSFW.
 func (c *Client) ListPackages(ctx context.Context, community string, opts ListOptions) (PackageList, error) {
 	if opts.Page < 1 {
 		opts.Page = 1
@@ -146,9 +147,14 @@ func (c *Client) ListPackages(ctx context.Context, community string, opts ListOp
 	if err := c.getJSON(ctx, path, q, &resp); err != nil {
 		return PackageList{}, err
 	}
-	if resp.Results == nil {
-		resp.Results = []PackageSummary{}
+	excluded := c.Exclusions(ctx)
+	packages := []PackageSummary{}
+	for _, p := range resp.Results {
+		if !excluded[p.Namespace+"-"+p.Name] {
+			packages = append(packages, p)
+		}
 	}
+	resp.Results = packages
 	return PackageList{Count: resp.Count, Page: opts.Page, HasMore: resp.Next != nil, Packages: resp.Results}, nil
 }
 

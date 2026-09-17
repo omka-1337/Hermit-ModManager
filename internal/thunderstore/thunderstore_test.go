@@ -42,6 +42,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *int) {
 			t.Errorf("unexpected query: %s", r.URL.RawQuery)
 		}
 		w.Write([]byte(`{"count": 21, "next": "x", "results": [
+			{"namespace": "ebkr", "name": "r2modman"},
 			{"namespace": "notnotnotswipez", "name": "MoreCompany", "download_count": 100,
 			 "last_updated": "2026-04-25T01:28:42.076106Z", "categories": [{"id": "658", "name": "Mods", "slug": "mods"}]}
 		]}`))
@@ -49,6 +50,9 @@ func newTestServer(t *testing.T) (*httptest.Server, *int) {
 	mux.HandleFunc("/api/cyberstorm/listing/lethal-company/notnotnotswipez/MoreCompany/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"namespace": "notnotnotswipez", "name": "MoreCompany", "latest_version_number": "1.14.0",
 			"dependencies": [{"namespace": "BepInEx", "name": "BepInExPack", "version_number": "5.4.2100"}]}`))
+	})
+	mux.HandleFunc("/exclusions.md", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("\nebkr-r2modman\n\nOther-Tool\n"))
 	})
 	mux.HandleFunc("/api/experimental/package/a/b/1.0.0/readme/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"markdown": "# Hi"}`))
@@ -93,13 +97,14 @@ func TestSchemaAndFindCommunity(t *testing.T) {
 func TestListingAndPackage(t *testing.T) {
 	srv, _ := newTestServer(t)
 	c := NewClient(srv.URL, "test", t.TempDir())
+	c.exclusionsURL = srv.URL + "/exclusions.md"
 	ctx := context.Background()
 
 	list, err := c.ListPackages(ctx, "lethal-company", ListOptions{Query: "more", IncludeNSFW: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if list.Count != 21 || !list.HasMore || list.Page != 1 || list.Packages[0].Name != "MoreCompany" || list.Packages[0].LastUpdated.IsZero() {
+	if len(list.Packages) != 1 || list.Count != 21 || !list.HasMore || list.Page != 1 || list.Packages[0].Name != "MoreCompany" || list.Packages[0].LastUpdated.IsZero() {
 		t.Fatalf("list: %+v", list)
 	}
 
@@ -128,5 +133,14 @@ func TestParseDependency(t *testing.T) {
 		if _, err := ParseDependency(bad); err == nil {
 			t.Errorf("%q: expected error", bad)
 		}
+	}
+}
+
+func TestExclusionsFallBackToBundledList(t *testing.T) {
+	c := NewClient("http://127.0.0.1:1", "test", t.TempDir())
+	c.exclusionsURL = "http://127.0.0.1:1/exclusions.md"
+	ex := c.Exclusions(context.Background())
+	if !ex["ebkr-r2modman"] || len(ex) < 10 {
+		t.Errorf("bundled exclusions: %v", ex)
 	}
 }
