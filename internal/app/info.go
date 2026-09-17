@@ -10,7 +10,7 @@ const (
 )
 
 // Version is overridden at build time via -ldflags "-X hermit/internal/app.Version=...".
-var Version = "0.1.0-dev"
+var Version = "0.1.0"
 
 type AppInfo struct {
 	Name    string `json:"name"`

@@ -60,15 +60,20 @@ func isHybridNVIDIA(sysfs string) bool {
 
 // initialEnv returns the environment the process was started with. Wails
 // modifies the environment in its package init, before main runs, so
-// os.Getenv cannot tell user settings from Wails defaults.
+// os.Getenv cannot tell user settings from Wails defaults; in the AppImage the
+// AppRun hooks change it even earlier, which OriginalEnv undoes.
 func initialEnv() map[string]string {
 	env := map[string]string{}
-	data, err := os.ReadFile("/proc/self/environ")
-	if err != nil {
-		return env
+	var entries []string
+	if os.Getenv(originalEnvVar) != "" {
+		entries = OriginalEnv()
+	} else if data, err := os.ReadFile("/proc/self/environ"); err == nil {
+		for _, kv := range bytes.Split(data, []byte{0}) {
+			entries = append(entries, string(kv))
+		}
 	}
-	for _, kv := range bytes.Split(data, []byte{0}) {
-		if k, v, ok := strings.Cut(string(kv), "="); ok {
+	for _, kv := range entries {
+		if k, v, ok := strings.Cut(kv, "="); ok {
 			env[k] = v
 		}
 	}
