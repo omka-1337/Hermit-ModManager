@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "0.1.0"
+	},
+	"info": {
+		"0000": {
+			"ProductVersion": "0.1.0",
+			"CompanyName": "Stanislav Lisenko",
+			"FileDescription": "Mod manager for BepInEx games",
+			"LegalCopyright": "(c) 2026, Stanislav Lisenko",
+			"ProductName": "BepInEx Mod Manager",
+			"Comments": "This is a comment"
+		}
+	}
+}

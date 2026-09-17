@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=BepInEx Mod Manager
+Comment=Mod manager for BepInEx games
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/bepinexmodmanager %u
+Terminal=false
+Type=Application
+Icon=bepinexmodmanager
+Categories=Utility;
+StartupWMClass=bepinexmodmanager
+
+ 

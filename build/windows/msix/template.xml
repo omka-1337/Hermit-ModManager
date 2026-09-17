@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MsixPackagingToolTemplate
+    xmlns="http://schemas.microsoft.com/msix/packaging/msixpackagingtool/template/2022">
+    <Settings
+        AllowTelemetry="false"
+        ApplyACLsToPackageFiles="true"
+        GenerateCommandLineFile="true"
+        AllowPromptForPassword="false">
+    </Settings>
+    <Installer
+        Path="bepinexmodmanager"
+        Arguments=""
+        InstallLocation="C:\Program Files\Stanislav Lisenko\BepInEx Mod Manager">
+    </Installer>
+    <PackageInformation
+        PackageName="BepInEx Mod Manager"
+        PackageDisplayName="BepInEx Mod Manager"
+        PublisherName="CN=Stanislav Lisenko"
+        PublisherDisplayName="Stanislav Lisenko"
+        Version="0.1.0.0"
+        PackageDescription="Mod manager for BepInEx games">
+        <Capabilities>
+            <Capability Name="runFullTrust" />
+            
+        </Capabilities>
+        <Applications>
+            <Application
+                Id="com.stanislav.bepinexmodmanager"
+                Description="Mod manager for BepInEx games"
+                DisplayName="BepInEx Mod Manager"
+                ExecutableName="bepinexmodmanager"
+                EntryPoint="Windows.FullTrustApplication">
+                
+            </Application>
+        </Applications>
+        <Resources>
+            <Resource Language="en-us" />
+        </Resources>
+        <Dependencies>
+            <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+        </Dependencies>
+        <Properties>
+            <Framework>false</Framework>
+            <DisplayName>BepInEx Mod Manager</DisplayName>
+            <PublisherDisplayName>Stanislav Lisenko</PublisherDisplayName>
+            <Description>Mod manager for BepInEx games</Description>
+            <Logo>Assets\AppIcon.png</Logo>
+        </Properties>
+    </PackageInformation>
+    <SaveLocation PackagePath="bepinexmodmanager.msix" />
+    <PackageIntegrity>
+        <CertificatePath></CertificatePath>
+    </PackageIntegrity>
+</MsixPackagingToolTemplate>
