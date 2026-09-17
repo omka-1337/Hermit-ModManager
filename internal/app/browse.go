@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"bepinexmodmanager/internal/library"
+	"bepinexmodmanager/internal/settings"
 	"bepinexmodmanager/internal/thunderstore"
 )
 
@@ -12,12 +13,13 @@ var ErrNoCommunity = errors.New("this game is not available on Thunderstore")
 
 // BrowseService lets the frontend browse Thunderstore packages for a game.
 type BrowseService struct {
-	lib *library.Library
-	ts  *thunderstore.Client
+	lib      *library.Library
+	ts       *thunderstore.Client
+	settings *settings.Store
 }
 
-func NewBrowseService(lib *library.Library, ts *thunderstore.Client) *BrowseService {
-	return &BrowseService{lib: lib, ts: ts}
+func NewBrowseService(lib *library.Library, ts *thunderstore.Client, settings *settings.Store) *BrowseService {
+	return &BrowseService{lib: lib, ts: ts, settings: settings}
 }
 
 // GetCommunity returns the Thunderstore community of a game, or ErrNoCommunity.
@@ -42,6 +44,11 @@ func (s *BrowseService) GetFilters(ctx context.Context, community string) (thund
 }
 
 func (s *BrowseService) ListPackages(ctx context.Context, community string, opts thunderstore.ListOptions) (thunderstore.PackageList, error) {
+	st, err := s.settings.Get()
+	if err != nil {
+		return thunderstore.PackageList{}, err
+	}
+	opts.IncludeNSFW = st.AllowNSFW
 	return s.ts.ListPackages(ctx, community, opts)
 }
 

@@ -38,7 +38,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *int) {
 		w.Write([]byte(schemaJSON))
 	})
 	mux.HandleFunc("/api/cyberstorm/listing/lethal-company/{$}", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("q") != "more" || r.URL.Query().Get("ordering") != "most-downloaded" || r.URL.Query().Get("nsfw") != "False" {
+		if r.URL.Query().Get("q") != "more" || r.URL.Query().Get("ordering") != "most-downloaded" || r.URL.Query().Get("nsfw") != "True" {
 			t.Errorf("unexpected query: %s", r.URL.RawQuery)
 		}
 		w.Write([]byte(`{"count": 21, "next": "x", "results": [
@@ -95,7 +95,7 @@ func TestListingAndPackage(t *testing.T) {
 	c := NewClient(srv.URL, "test", t.TempDir())
 	ctx := context.Background()
 
-	list, err := c.ListPackages(ctx, "lethal-company", ListOptions{Query: "more"})
+	list, err := c.ListPackages(ctx, "lethal-company", ListOptions{Query: "more", IncludeNSFW: true})
 	if err != nil {
 		t.Fatal(err)
 	}

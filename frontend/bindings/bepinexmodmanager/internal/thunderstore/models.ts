@@ -66,6 +66,7 @@ export interface PackageDetail {
     "version_created": string;
     "download_url": string;
     "is_deprecated": boolean;
+    "is_nsfw": boolean;
     "categories": Category[] | null;
     "dependencies": Dependency[] | null;
     "dependant_count": number;
@@ -94,6 +95,7 @@ export interface PackageSummary {
     "last_updated": string;
     "is_pinned": boolean;
     "is_deprecated": boolean;
+    "is_nsfw": boolean;
     "categories": Category[] | null;
 }
 

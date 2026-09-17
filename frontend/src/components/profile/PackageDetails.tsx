@@ -3,7 +3,7 @@ import { Browser } from "@wailsio/runtime";
 import { BrowseService, errorMessage, isCancelled, PackageDetail } from "../../api";
 import { formatAgo, formatBytes, formatCount } from "../../format";
 import Markdown from "../Markdown";
-import { Button, ErrorText } from "../ui";
+import { Button, ErrorText, NsfwBadge } from "../ui";
 import PackageIcon from "./PackageIcon";
 
 type Props = {
@@ -55,7 +55,10 @@ export default function PackageDetails({ community, namespace, name, onClose, on
             <div className="flex gap-4">
               <PackageIcon url={pkg.icon_url} size={72} />
               <div className="flex min-w-0 flex-col gap-1">
-                <h2 className="truncate text-xl font-semibold">{pkg.name}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-xl font-semibold">{pkg.name}</h2>
+                  {pkg.is_nsfw && <NsfwBadge />}
+                </div>
                 <span className="text-sm text-zinc-400">by {pkg.namespace}</span>
                 <span className="text-xs text-zinc-500">
                   v{pkg.latest_version_number} · updated {formatAgo(pkg.version_created)}

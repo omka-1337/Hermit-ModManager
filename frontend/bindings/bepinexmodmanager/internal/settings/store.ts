@@ -16,3 +16,10 @@ export function CompleteSetup(): $CancellablePromise<$models.Settings> {
 export function Get(): $CancellablePromise<$models.Settings> {
     return $Call.ByID(1366081196);
 }
+
+/**
+ * Update replaces user-editable preferences; SetupCompleted is kept as stored.
+ */
+export function Update(st: $models.Settings): $CancellablePromise<$models.Settings> {
+    return $Call.ByID(778539281, st);
+}

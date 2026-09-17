@@ -15,3 +15,17 @@ func TestCompleteSetupPersists(t *testing.T) {
 		t.Fatal("setup flag not persisted")
 	}
 }
+
+func TestUpdateKeepsSetupFlag(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if _, err := store.CompleteSetup(); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Update(Settings{AllowNSFW: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.SetupCompleted || !st.AllowNSFW {
+		t.Fatalf("after update: %+v", st)
+	}
+}

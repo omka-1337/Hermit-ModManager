@@ -13,6 +13,8 @@ import (
 type Settings struct {
 	// SetupCompleted is set once the first-run setup is finished or skipped.
 	SetupCompleted bool `json:"setupCompleted"`
+	// AllowNSFW shows packages marked NSFW when browsing mods.
+	AllowNSFW bool `json:"allowNsfw"`
 }
 
 type Store struct {
@@ -39,6 +41,19 @@ func (s *Store) CompleteSetup() (Settings, error) {
 		return Settings{}, err
 	}
 	st.SetupCompleted = true
+	return st, s.save(st)
+}
+
+// Update replaces user-editable preferences; SetupCompleted is kept as stored.
+func (s *Store) Update(st Settings) (Settings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	current, err := s.load()
+	if err != nil {
+		return Settings{}, err
+	}
+	st.SetupCompleted = current.SetupCompleted
 	return st, s.save(st)
 }
 

@@ -25,6 +25,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	settingsStore := settings.NewStore(root)
 	ts := thunderstore.NewClient(
 		thunderstore.DefaultBaseURL,
 		app.ID+"/"+app.Version,
@@ -37,8 +38,8 @@ func main() {
 		Services: []application.Service{
 			application.NewService(app.NewInfoService()),
 			application.NewService(lib),
-			application.NewService(settings.NewStore(root)),
-			application.NewService(app.NewBrowseService(lib, ts)),
+			application.NewService(settingsStore),
+			application.NewService(app.NewBrowseService(lib, ts, settingsStore)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

@@ -10,7 +10,7 @@ import {
   PackageSummary,
 } from "../../api";
 import { formatAgo, formatCount } from "../../format";
-import { ErrorText, inputClass } from "../ui";
+import { ErrorText, inputClass, NsfwBadge } from "../ui";
 import PackageDetails from "./PackageDetails";
 import PackageIcon from "./PackageIcon";
 
@@ -167,6 +167,7 @@ export default function BrowseTab({ game }: { game: Game }) {
                       <div className="flex items-baseline gap-2">
                         <span className="truncate text-sm font-medium">{p.name}</span>
                         <span className="truncate text-xs text-zinc-500">by {p.namespace}</span>
+                        {p.is_nsfw && <NsfwBadge />}
                       </div>
                       <p className="line-clamp-2 text-xs text-zinc-400">{p.description}</p>
                       <div className="mt-1 flex gap-3 text-xs text-zinc-500">

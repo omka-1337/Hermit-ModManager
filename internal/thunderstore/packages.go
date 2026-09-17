@@ -40,6 +40,8 @@ type ListOptions struct {
 	// Section is a section UUID from Filters; empty means all packages.
 	Section string `json:"section"`
 	Page    int    `json:"page"`
+	// IncludeNSFW is decided by the manager settings, not by the caller.
+	IncludeNSFW bool `json:"-"`
 }
 
 type PackageSummary struct {
@@ -53,6 +55,7 @@ type PackageSummary struct {
 	LastUpdated   time.Time  `json:"last_updated"`
 	IsPinned      bool       `json:"is_pinned"`
 	IsDeprecated  bool       `json:"is_deprecated"`
+	IsNSFW        bool       `json:"is_nsfw"`
 	Categories    []Category `json:"categories"`
 }
 
@@ -86,6 +89,7 @@ type PackageDetail struct {
 	VersionCreated time.Time    `json:"version_created"`
 	DownloadURL    string       `json:"download_url"`
 	IsDeprecated   bool         `json:"is_deprecated"`
+	IsNSFW         bool         `json:"is_nsfw"`
 	Categories     []Category   `json:"categories"`
 	Dependencies   []Dependency `json:"dependencies"`
 	DependantCount int          `json:"dependant_count"`
@@ -113,7 +117,7 @@ func (c *Client) Filters(ctx context.Context, community string) (Filters, error)
 }
 
 // ListPackages returns one page (20 packages) of a community listing.
-// Deprecated and NSFW packages are excluded.
+// Deprecated packages are excluded; NSFW ones only with IncludeNSFW.
 func (c *Client) ListPackages(ctx context.Context, community string, opts ListOptions) (PackageList, error) {
 	if opts.Page < 1 {
 		opts.Page = 1
@@ -125,7 +129,7 @@ func (c *Client) ListPackages(ctx context.Context, community string, opts ListOp
 		"ordering":   {string(opts.Ordering)},
 		"page":       {strconv.Itoa(opts.Page)},
 		"deprecated": {"False"},
-		"nsfw":       {"False"},
+		"nsfw":       {pyBool(opts.IncludeNSFW)},
 	}
 	if opts.Query != "" {
 		q.Set("q", opts.Query)
@@ -178,4 +182,12 @@ func (c *Client) Readme(ctx context.Context, namespace, name, version string) (s
 		return "", err
 	}
 	return resp.Markdown, nil
+}
+
+// pyBool formats a bool the way the Django-based API expects.
+func pyBool(b bool) string {
+	if b {
+		return "True"
+	}
+	return "False"
 }

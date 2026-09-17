@@ -46,6 +46,10 @@ export function BackendBadge({ backend }: { backend: Backend }) {
   return label ? <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">{label}</span> : null;
 }
 
+export function NsfwBadge() {
+  return <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">NSFW</span>;
+}
+
 export function ErrorText({ children }: { children: ReactNode }) {
   return children ? <p className="text-sm text-red-400">{children}</p> : null;
 }

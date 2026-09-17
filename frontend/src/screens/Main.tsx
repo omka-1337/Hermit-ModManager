@@ -3,6 +3,7 @@ import { AppInfo, Game, InfoService } from "../api";
 import GamePicker from "../components/GamePicker";
 import GameView from "../components/GameView";
 import ProfileView from "../components/profile/ProfileView";
+import SettingsView from "./SettingsView";
 import { Button, Modal } from "../components/ui";
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
 export default function Main({ games, selectedId, onSelect, onGamesChanged }: Props) {
   const [adding, setAdding] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [openProfile, setOpenProfile] = useState<{ gameId: string; profileId: string } | null>(null);
   const selected = games.find((g) => g.id === selectedId) ?? null;
 
@@ -33,10 +35,11 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
               key={g.id}
               onClick={() => {
                 setOpenProfile(null);
+                setShowSettings(false);
                 onSelect(g.id);
               }}
               className={`truncate rounded-md px-3 py-2 text-left text-sm ${
-                g.id === selectedId ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/60"
+                g.id === selectedId && !showSettings ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/60"
               }`}
             >
               {g.name}
@@ -48,13 +51,25 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
             + Add game
           </Button>
         </div>
-        <div className="mt-auto px-4 py-3 text-xs text-zinc-500">
+        <div className="mt-auto px-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            className={`w-full rounded-md px-3 py-2 text-left text-sm ${
+              showSettings ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/60"
+            }`}
+          >
+            Settings
+          </button>
+        </div>
+        <div className="px-4 py-3 text-xs text-zinc-500">
           {info ? `v${info.version} · ${info.os}/${info.arch}` : "…"}
         </div>
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto">
-        {selected && openProfile?.gameId === selected.id ? (
+        {showSettings ? (
+          <SettingsView />
+        ) : selected && openProfile?.gameId === selected.id ? (
           <ProfileView
             key={openProfile.profileId}
             game={selected}

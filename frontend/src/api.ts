@@ -3,6 +3,7 @@ import { CancelError, Dialogs } from "@wailsio/runtime";
 export { Backend, Library, Runtime } from "../bindings/bepinexmodmanager/internal/library";
 export type { Game, GameCandidate, Profile } from "../bindings/bepinexmodmanager/internal/library";
 export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/settings";
+export type { Settings } from "../bindings/bepinexmodmanager/internal/settings";
 export { BrowseService, InfoService } from "../bindings/bepinexmodmanager/internal/app";
 export { Ordering } from "../bindings/bepinexmodmanager/internal/thunderstore";
 export type {

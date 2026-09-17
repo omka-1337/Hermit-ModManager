@@ -6,4 +6,9 @@ export interface Settings {
      * SetupCompleted is set once the first-run setup is finished or skipped.
      */
     "setupCompleted": boolean;
+
+    /**
+     * AllowNSFW shows packages marked NSFW when browsing mods.
+     */
+    "allowNsfw": boolean;
 }
