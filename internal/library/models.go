@@ -52,12 +52,16 @@ type Profile struct {
 }
 
 type Mod struct {
+	// ID is "<author>-<name>", the Thunderstore full name without version.
 	ID      string    `json:"id"`
 	Name    string    `json:"name"`
+	Author  string    `json:"author"`
 	Version string    `json:"version"`
 	Enabled bool      `json:"enabled"`
 	Source  ModSource `json:"source"`
-	// Files are paths relative to the profile's BepInEx directory.
+	// Dependencies are "<author>-<name>-<version>" strings from the package manifest.
+	Dependencies []string `json:"dependencies"`
+	// Files are slash-separated paths relative to the profile directory.
 	Files []string `json:"files"`
 }
 

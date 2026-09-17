@@ -22,6 +22,7 @@ type Client struct {
 	baseURL   string
 	userAgent string
 	http      *http.Client
+	download  *http.Client
 	cacheDir  string
 
 	schemaMu      sync.Mutex
@@ -35,7 +36,13 @@ func NewClient(baseURL, userAgent, cacheDir string) *Client {
 		baseURL:   strings.TrimRight(baseURL, "/"),
 		userAgent: userAgent,
 		http:      &http.Client{Timeout: 30 * time.Second},
-		cacheDir:  cacheDir,
+		// Package archives can be hundreds of MB, so only the time to first
+		// byte is limited; cancellation goes through the request context.
+		download: &http.Client{Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			ResponseHeaderTimeout: 30 * time.Second,
+		}},
+		cacheDir: cacheDir,
 	}
 }
 

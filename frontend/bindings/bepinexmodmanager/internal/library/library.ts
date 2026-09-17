@@ -58,6 +58,13 @@ export function ListProfiles(gameID: string): $CancellablePromise<$models.Profil
 }
 
 /**
+ * ProfileDir returns the directory of an existing profile.
+ */
+export function ProfileDir(gameID: string, profileID: string): $CancellablePromise<string> {
+    return $Call.ByID(3070680956, gameID, profileID);
+}
+
+/**
  * RemoveGame deletes the game entry together with all its profiles and installed mods.
  */
 export function RemoveGame(id: string): $CancellablePromise<void> {
@@ -82,4 +89,12 @@ export function RenameProfile(gameID: string, profileID: string, name: string): 
 
 export function SetActiveProfile(gameID: string, profileID: string): $CancellablePromise<$models.Game> {
     return $Call.ByID(3430361727, gameID, profileID);
+}
+
+/**
+ * UpdateProfile loads a profile, applies fn and saves the result atomically
+ * with respect to other library operations.
+ */
+export function UpdateProfile(gameID: string, profileID: string, fn: any): $CancellablePromise<$models.Profile> {
+    return $Call.ByID(464027226, gameID, profileID, fn);
 }

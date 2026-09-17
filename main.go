@@ -10,6 +10,7 @@ import (
 
 	"bepinexmodmanager/internal/app"
 	"bepinexmodmanager/internal/library"
+	"bepinexmodmanager/internal/modinstall"
 	"bepinexmodmanager/internal/settings"
 	"bepinexmodmanager/internal/steam"
 	"bepinexmodmanager/internal/thunderstore"
@@ -17,6 +18,10 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+func init() {
+	application.RegisterEvent[modinstall.Progress](app.InstallProgressEvent)
+}
 
 func main() {
 	root := filepath.Join(xdg.DataHome, app.ID)
@@ -40,6 +45,7 @@ func main() {
 			application.NewService(lib),
 			application.NewService(settingsStore),
 			application.NewService(app.NewBrowseService(lib, ts, settingsStore)),
+			application.NewService(app.NewInstallService(modinstall.NewInstaller(lib, ts))),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

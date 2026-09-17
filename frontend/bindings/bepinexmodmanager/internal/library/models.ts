@@ -57,14 +57,23 @@ export interface GameCandidate {
 }
 
 export interface Mod {
+    /**
+     * ID is "<author>-<name>", the Thunderstore full name without version.
+     */
     "id": string;
     "name": string;
+    "author": string;
     "version": string;
     "enabled": boolean;
     "source": ModSource;
 
     /**
-     * Files are paths relative to the profile's BepInEx directory.
+     * Dependencies are "<author>-<name>-<version>" strings from the package manifest.
+     */
+    "dependencies": string[] | null;
+
+    /**
+     * Files are slash-separated paths relative to the profile directory.
      */
     "files": string[] | null;
 }

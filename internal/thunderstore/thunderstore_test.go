@@ -118,3 +118,15 @@ func TestListingAndPackage(t *testing.T) {
 		t.Errorf("readme: %q %v", md, err)
 	}
 }
+
+func TestParseDependency(t *testing.T) {
+	ref, err := ParseDependency("some-team-Mod_Name-1.2.30")
+	if err != nil || ref != (PackageRef{Namespace: "some-team", Name: "Mod_Name", Version: "1.2.30"}) {
+		t.Errorf("got %+v %v", ref, err)
+	}
+	for _, bad := range []string{"Mod-1.0.0", "a-b-1.0", "a-b/../c-1.0.0", "a-b-1.0.0-beta"} {
+		if _, err := ParseDependency(bad); err == nil {
+			t.Errorf("%q: expected error", bad)
+		}
+	}
+}

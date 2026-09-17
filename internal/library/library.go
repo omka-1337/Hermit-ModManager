@@ -236,6 +236,34 @@ func (l *Library) GetProfile(gameID, profileID string) (Profile, error) {
 	return l.loadProfile(gameID, profileID)
 }
 
+// ProfileDir returns the directory of an existing profile.
+func (l *Library) ProfileDir(gameID, profileID string) (string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, err := l.loadProfile(gameID, profileID); err != nil {
+		return "", err
+	}
+	return l.profileDir(gameID, profileID), nil
+}
+
+// UpdateProfile loads a profile, applies fn and saves the result atomically
+// with respect to other library operations.
+func (l *Library) UpdateProfile(gameID, profileID string, fn func(*Profile) error) (Profile, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	p, err := l.loadProfile(gameID, profileID)
+	if err != nil {
+		return Profile{}, err
+	}
+	if err := fn(&p); err != nil {
+		return Profile{}, err
+	}
+	p.ID = profileID
+	return p, l.saveProfile(gameID, p)
+}
+
 func (l *Library) CreateProfile(gameID, name string) (Profile, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

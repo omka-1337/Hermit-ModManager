@@ -3,9 +3,11 @@
 
 import * as BrowseService from "./browseservice.js";
 import * as InfoService from "./infoservice.js";
+import * as InstallService from "./installservice.js";
 export {
     BrowseService,
-    InfoService
+    InfoService,
+    InstallService
 };
 
 export type {

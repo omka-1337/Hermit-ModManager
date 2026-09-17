@@ -3,6 +3,7 @@ import { errorMessage, Game, Library, Profile } from "../../api";
 import { Button, ErrorText } from "../ui";
 import BrowseTab from "./BrowseTab";
 import InstalledTab from "./InstalledTab";
+import { ProfileProvider } from "./ProfileContext";
 
 type Tab = "installed" | "browse";
 
@@ -23,8 +24,9 @@ export default function ProfileView({ game, profileId, onBack }: Props) {
       .catch((err) => setError(errorMessage(err)));
   }, [game.id, profileId]);
 
+  const modCount = profile?.mods?.length ?? 0;
   const tabs: { id: Tab; label: string }[] = [
-    { id: "installed", label: `Installed${profile?.mods?.length ? ` (${profile.mods.length})` : ""}` },
+    { id: "installed", label: `Installed${modCount ? ` (${modCount})` : ""}` },
     { id: "browse", label: "Browse" },
   ];
 
@@ -64,11 +66,15 @@ export default function ProfileView({ game, profileId, onBack }: Props) {
             <ErrorText>{error}</ErrorText>
           </div>
         )}
-        {profile && tab === "installed" && <InstalledTab profile={profile} onBrowse={() => setTab("browse")} />}
-        {/* Browse stays mounted so search and scroll survive tab switches. */}
-        <div className={tab === "browse" ? "h-full" : "hidden"}>
-          <BrowseTab game={game} />
-        </div>
+        {profile && (
+          <ProfileProvider game={game} profile={profile} onProfileChange={setProfile}>
+            {tab === "installed" && <InstalledTab onBrowse={() => setTab("browse")} />}
+            {/* Browse stays mounted so search and scroll survive tab switches. */}
+            <div className={tab === "browse" ? "h-full" : "hidden"}>
+              <BrowseTab />
+            </div>
+          </ProfileProvider>
+        )}
       </div>
     </div>
   );

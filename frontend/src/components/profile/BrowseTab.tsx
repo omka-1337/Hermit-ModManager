@@ -4,7 +4,6 @@ import {
   Community,
   errorMessage,
   Filters,
-  Game,
   isCancelled,
   Ordering,
   PackageSummary,
@@ -13,6 +12,7 @@ import { formatAgo, formatCount } from "../../format";
 import { ErrorText, inputClass, NsfwBadge } from "../ui";
 import PackageDetails from "./PackageDetails";
 import PackageIcon from "./PackageIcon";
+import { useProfile } from "./ProfileContext";
 
 const orderings: { value: Ordering; label: string }[] = [
   { value: Ordering.OrderMostDownloaded, label: "Most downloaded" },
@@ -23,7 +23,8 @@ const orderings: { value: Ordering; label: string }[] = [
 
 type Selected = { namespace: string; name: string };
 
-export default function BrowseTab({ game }: { game: Game }) {
+export default function BrowseTab() {
+  const { game, installed } = useProfile();
   const [community, setCommunity] = useState<Community | null>(null);
   const [filters, setFilters] = useState<Filters | null>(null);
   const [fatal, setFatal] = useState("");
@@ -168,6 +169,9 @@ export default function BrowseTab({ game }: { game: Game }) {
                         <span className="truncate text-sm font-medium">{p.name}</span>
                         <span className="truncate text-xs text-zinc-500">by {p.namespace}</span>
                         {p.is_nsfw && <NsfwBadge />}
+                        {installed.has(`${p.namespace}-${p.name}`) && (
+                          <span className="ml-auto shrink-0 text-xs text-indigo-400">Installed</span>
+                        )}
                       </div>
                       <p className="line-clamp-2 text-xs text-zinc-400">{p.description}</p>
                       <div className="mt-1 flex gap-3 text-xs text-zinc-500">

@@ -4,6 +4,7 @@ import { BrowseService, errorMessage, isCancelled, PackageDetail } from "../../a
 import { formatAgo, formatBytes, formatCount } from "../../format";
 import Markdown from "../Markdown";
 import { Button, ErrorText, NsfwBadge } from "../ui";
+import InstallButton from "./InstallButton";
 import PackageIcon from "./PackageIcon";
 
 type Props = {
@@ -68,10 +69,9 @@ export default function PackageDetails({ community, namespace, name, onClose, on
 
             <p className="text-sm text-zinc-300">{pkg.description}</p>
 
-            <div className="flex items-center gap-2">
-              <Button variant="primary" disabled title="Installing mods is coming next">
-                Install
-              </Button>
+            <InstallButton namespace={pkg.namespace} name={pkg.name} latestVersion={pkg.latest_version_number} />
+
+            <div className="-mt-2 flex items-center gap-2">
               <Button variant="ghost" onClick={() => Browser.OpenURL(pkg.page_url)}>
                 Thunderstore ↗
               </Button>
