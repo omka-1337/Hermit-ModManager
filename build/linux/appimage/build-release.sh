@@ -32,7 +32,7 @@ Exec=hermit
 Icon=hermit
 Categories=Game;Utility;
 Terminal=false
-StartupWMClass=hermit
+StartupWMClass=org.wails.hermit
 DESKTOP
 
 # WebKit starts helper processes from a directory compiled into the library.

@@ -6,9 +6,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"hermit/internal/app"
 	"hermit/internal/github"
@@ -79,6 +81,7 @@ func main() {
 	}
 
 	platform.ConfigureRendering()
+	platform.SetProgramName(app.ID, app.Name)
 
 	b, err := newBackend()
 	if err != nil {
@@ -107,10 +110,12 @@ func main() {
 		},
 	})
 
-	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title: app.Name,
 		// The frontend draws its own title bar and window controls.
-		Frameless:        true,
+		Frameless: true,
+		// Shown by showFramelessWindow once the native window exists.
+		Hidden:           true,
 		Width:            1200,
 		Height:           760,
 		MinWidth:         900,
@@ -119,9 +124,27 @@ func main() {
 		URL:              "/",
 	})
 
+	wailsApp.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		go showFramelessWindow(window)
+	})
+
 	if err := wailsApp.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// showFramelessWindow shows the main window after preparing its native GTK
+// window, which Wails creates asynchronously after startup.
+func showFramelessWindow(window *application.WebviewWindow) {
+	for range 200 {
+		native := application.InvokeSyncWithResult(window.NativeWindow)
+		if native != nil {
+			application.InvokeSync(func() { platform.PrepareFramelessWindow(native, app.Name) })
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	window.Show()
 }
 
 func runWrapper(args []string) int {
