@@ -10,6 +10,7 @@ export {
 export type {
     Conflict,
     InstallPlan,
+    Options,
     PlannedPackage,
     Progress
 } from "./models.js";

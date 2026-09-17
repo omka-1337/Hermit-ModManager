@@ -227,6 +227,17 @@ type fakeDownloader struct {
 	calls    []string
 }
 
+// Versions lists all versions of a package known to the fake.
+func (f *fakeDownloader) Versions(_ context.Context, namespace, name string) ([]thunderstore.Version, error) {
+	var out []thunderstore.Version
+	for pkg := range f.packages {
+		if r, err := thunderstore.ParseDependency(pkg); err == nil && r.Namespace == namespace && r.Name == name {
+			out = append(out, thunderstore.Version{VersionNumber: r.Version})
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeDownloader) DownloadPackage(_ context.Context, ref thunderstore.PackageRef, _ func(int64, int64)) (thunderstore.Archive, error) {
 	f.calls = append(f.calls, ref.String())
 	deps, ok := f.packages[ref.String()]
@@ -268,28 +279,29 @@ func TestInstallerResolvesDependencies(t *testing.T) {
 	pid := game.ActiveProfile
 
 	var progress []Progress
-	profile, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Evaisa", Name: "LethalLib", Version: "1.1.1"}, false, func(p Progress) {
+	profile, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Evaisa", Name: "LethalLib", Version: "1.1.1"}, Options{}, func(p Progress) {
 		progress = append(progress, p)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ids := modVersions(profile); !slices.Equal(ids, []string{"BepInEx-BepInExPack@5.4.2100", "Evaisa-LethalLib@1.1.1"}) {
+	// A missing dependency is installed in its latest version.
+	if ids := modVersions(profile); !slices.Equal(ids, []string{"BepInEx-BepInExPack@5.4.2200", "Evaisa-LethalLib@1.1.1"}) {
 		t.Fatalf("mods: %v", ids)
 	}
 	if len(progress) == 0 || progress[0].Target != "Evaisa-LethalLib" {
 		t.Errorf("progress: %+v", progress)
 	}
 	dir, _ := lib.ProfileDir(game.ID, pid)
-	if readFile(t, filepath.Join(dir, "BepInEx/core/BepInEx.dll")) != "5.4.2100" {
+	if readFile(t, filepath.Join(dir, "BepInEx/core/BepInEx.dll")) != "5.4.2200" {
 		t.Error("loader pack not installed at profile root")
 	}
 	if m := profile.Mods[1]; m.Source.SHA256 != "sha-Evaisa-LethalLib-1.1.1" || m.Author != "Evaisa" || len(m.Dependencies) != 1 {
 		t.Errorf("mod entry: %+v", m)
 	}
 
-	// More_Suits needs a newer pack (upgrade) and an older LethalLib (kept).
-	profile, err = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "x753", Name: "More_Suits", Version: "1.5.2"}, false, nil)
+	// More_Suits needs versions that are already satisfied.
+	profile, err = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "x753", Name: "More_Suits", Version: "1.5.2"}, Options{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,9 +311,6 @@ func TestInstallerResolvesDependencies(t *testing.T) {
 	}
 	if slices.Contains(dl.calls, "Evaisa-LethalLib-1.0.0") {
 		t.Error("older dependency must not be downloaded when a newer one is installed")
-	}
-	if readFile(t, filepath.Join(dir, "BepInEx/core/BepInEx.dll")) != "5.4.2200" {
-		t.Error("loader pack not upgraded")
 	}
 
 	profile, err = in.Uninstall(game.ID, pid, "x753-More_Suits")
@@ -315,7 +324,7 @@ func TestInstallerResolvesDependencies(t *testing.T) {
 		t.Error("uninstalled files remain")
 	}
 
-	if _, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "No", Name: "Such", Version: "1.0.0"}, false, nil); err == nil {
+	if _, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "No", Name: "Such", Version: "1.0.0"}, Options{}, nil); err == nil {
 		t.Error("expected error for missing package")
 	}
 }
@@ -367,7 +376,7 @@ func TestEnableDisableCascade(t *testing.T) {
 	in := NewInstaller(lib, dl, nil)
 	ctx := context.Background()
 
-	if _, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Yuppie", Name: "YuppieMod", Version: "1.0.0"}, false, nil); err != nil {
+	if _, err := in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Yuppie", Name: "YuppieMod", Version: "1.0.0"}, Options{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	pack := "BepInEx/core/BepInEx.dll"
@@ -412,14 +421,14 @@ func TestEnableDisableCascade(t *testing.T) {
 	if y := findMod(t, p, "Yuppie-YuppieMod"); y.Active || y.UnmetDependencies[0] != "Evaisa-LethalLib-1.1.1" {
 		t.Errorf("after uninstalling dependency: %+v", y)
 	}
-	p, _ = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Evaisa", Name: "LethalLib", Version: "1.1.1"}, false, nil)
+	p, _ = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Evaisa", Name: "LethalLib", Version: "1.1.1"}, Options{}, nil)
 	if !findMod(t, p, "Yuppie-YuppieMod").Active {
 		t.Error("dependant not reactivated after reinstalling dependency")
 	}
 
 	// A disabled mod can be uninstalled and updates keep it disabled.
 	p, _ = in.SetEnabled(game.ID, pid, "Yuppie-YuppieMod", false)
-	p, err = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Yuppie", Name: "YuppieMod", Version: "1.0.0"}, false, nil)
+	p, err = in.Install(ctx, game.ID, pid, thunderstore.PackageRef{Namespace: "Yuppie", Name: "YuppieMod", Version: "1.0.0"}, Options{}, nil)
 	if err != nil || findMod(t, p, "Yuppie-YuppieMod").Enabled || exists(filepath.Join(dir, yuppie)) {
 		t.Errorf("reinstall of disabled mod: err=%v", err)
 	}
@@ -436,7 +445,7 @@ func TestRefreshFixesStaleState(t *testing.T) {
 	dir, _ := lib.ProfileDir(game.ID, game.ActiveProfile)
 	dl := &fakeDownloader{t: t, dir: tmp, packages: map[string][]string{"A-Lib-1.0.0": {}, "A-Mod-1.0.0": {"A-Lib-1.0.0"}}}
 	in := NewInstaller(lib, dl, nil)
-	if _, err := in.Install(context.Background(), game.ID, game.ActiveProfile, thunderstore.PackageRef{Namespace: "A", Name: "Mod", Version: "1.0.0"}, false, nil); err != nil {
+	if _, err := in.Install(context.Background(), game.ID, game.ActiveProfile, thunderstore.PackageRef{Namespace: "A", Name: "Mod", Version: "1.0.0"}, Options{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// Simulate an old manager version that removed the dependency without syncing.
@@ -474,11 +483,11 @@ func TestLoaderConflicts(t *testing.T) {
 		return r
 	}
 
-	if _, err := in.Install(ctx, game.ID, pid, ref("A-UsesPack-1.0.0"), false, nil); err != nil {
+	if _, err := in.Install(ctx, game.ID, pid, ref("A-UsesPack-1.0.0"), Options{}, nil); err != nil {
 		t.Fatal(err)
 	}
 
-	plan, err := in.PlanInstall(ctx, game.ID, pid, ref("B-UsesFork-1.0.0"), nil)
+	plan, err := in.PlanInstall(ctx, game.ID, pid, ref("B-UsesFork-1.0.0"), Options{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,14 +501,14 @@ func TestLoaderConflicts(t *testing.T) {
 		t.Errorf("conflict: %+v", c)
 	}
 
-	if _, err := in.Install(ctx, game.ID, pid, ref("B-UsesFork-1.0.0"), false, nil); !errors.Is(err, ErrConflicts) {
+	if _, err := in.Install(ctx, game.ID, pid, ref("B-UsesFork-1.0.0"), Options{}, nil); !errors.Is(err, ErrConflicts) {
 		t.Fatalf("install without replace: %v", err)
 	}
 	if p, _ := lib.GetProfile(game.ID, pid); len(p.Mods) != 2 {
 		t.Errorf("profile changed by a rejected install: %v", modVersions(p))
 	}
 
-	p, err := in.Install(ctx, game.ID, pid, ref("B-UsesFork-1.0.0"), true, nil)
+	p, err := in.Install(ctx, game.ID, pid, ref("B-UsesFork-1.0.0"), Options{ReplaceConflicts: true}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +523,7 @@ func TestLoaderConflicts(t *testing.T) {
 	}
 
 	// Two loaders required by one package can never be installed together.
-	_, err = in.Install(ctx, game.ID, pid, ref("C-UsesBoth-1.0.0"), true, nil)
+	_, err = in.Install(ctx, game.ID, pid, ref("C-UsesBoth-1.0.0"), Options{ReplaceConflicts: true}, nil)
 	if err == nil || errors.Is(err, ErrConflicts) {
 		t.Errorf("conflicting dependencies: %v", err)
 	}
@@ -533,5 +542,53 @@ func TestRemoveKeepsFilesOfOtherMods(t *testing.T) {
 	}
 	if !exists(mkShared) {
 		t.Error("file shared with another mod was removed")
+	}
+}
+
+func TestDependencyVersionStrategy(t *testing.T) {
+	tmp := t.TempDir()
+	lib, _ := library.New(filepath.Join(tmp, "lib"), nil)
+	os.MkdirAll(filepath.Join(tmp, "game"), 0o755)
+	game, _ := lib.AddGame("Game", filepath.Join(tmp, "game"))
+	pid := game.ActiveProfile
+	dl := &fakeDownloader{t: t, dir: tmp, packages: map[string][]string{
+		"A-Lib-1.0.0":    {},
+		"A-Lib-1.1.0":    {},
+		"A-Lib-1.2.0":    {},
+		"A-Old-1.0.0":    {"A-Lib-1.0.0"},
+		"A-New-1.0.0":    {"A-Lib-1.1.0"},
+		"A-Pack-1.0.0":   {"A-Old-1.0.0", "A-Lib-1.0.0"},
+		"A-Pinned-1.0.0": {},
+	}}
+	in := NewInstaller(lib, dl, nil)
+	ctx := context.Background()
+	install := func(pkg string, opts Options) library.Profile {
+		t.Helper()
+		r, _ := thunderstore.ParseDependency(pkg)
+		p, err := in.Install(ctx, game.ID, pid, r, opts, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	lib.UpdateProfile(game.ID, pid, func(p *library.Profile) error {
+		p.Mods = append(p.Mods, library.Mod{ID: "A-Lib", Name: "Lib", Version: "1.0.0", Enabled: true, Active: true})
+		return nil
+	})
+
+	// Installed and new enough: kept.
+	p := install("A-Old-1.0.0", Options{})
+	if findMod(t, p, "A-Lib").Version != "1.0.0" {
+		t.Errorf("sufficient installed dependency changed: %v", modVersions(p))
+	}
+	// Installed but older than required: updated to the latest, not just the minimum.
+	p = install("A-New-1.0.0", Options{})
+	if findMod(t, p, "A-Lib").Version != "1.2.0" {
+		t.Errorf("outdated dependency: %v", modVersions(p))
+	}
+	// Modpacks pin exact versions, even downgrading.
+	p = install("A-Pack-1.0.0", Options{Modpack: true})
+	if findMod(t, p, "A-Lib").Version != "1.0.0" {
+		t.Errorf("modpack exact versions: %v", modVersions(p))
 	}
 }

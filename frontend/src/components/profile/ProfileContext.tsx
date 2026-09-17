@@ -22,7 +22,8 @@ type ProfileState = {
   progress: Progress | null;
   // report describes the last game session of this profile, if any.
   report: Report | null;
-  install: (namespace: string, name: string, version: string) => Promise<void>;
+  // modpack installs exact dependency versions.
+  install: (namespace: string, name: string, version: string, modpack: boolean) => Promise<void>;
   uninstall: (modId: string) => Promise<void>;
   setEnabled: (modId: string, enabled: boolean) => Promise<void>;
 };
@@ -99,9 +100,12 @@ export function ProfileProvider({ game, profile, onProfileChange, children }: Pr
       busy,
       progress,
       report,
-      install: (namespace, name, version) =>
+      install: (namespace, name, version, modpack) =>
         run(`${namespace}-${name}`, async () => {
-          const plan = await InstallService.PlanInstall(game.id, profile.id, namespace, name, version);
+          const plan = await InstallService.PlanInstall(game.id, profile.id, namespace, name, version, {
+            modpack,
+            replaceConflicts: false,
+          });
           const conflicts = plan.conflicts ?? [];
           const blocking = conflicts.find((c) => c.blocking);
           if (blocking) {
@@ -111,7 +115,10 @@ export function ProfileProvider({ game, profile, onProfileChange, children }: Pr
             const ok = await confirmDanger("Conflicting mods", conflictMessage(conflicts), "Replace");
             if (!ok) return profile;
           }
-          return InstallService.InstallPackage(game.id, profile.id, namespace, name, version, conflicts.length > 0);
+          return InstallService.InstallPackage(game.id, profile.id, namespace, name, version, {
+            modpack,
+            replaceConflicts: conflicts.length > 0,
+          });
         }),
       uninstall: (modId) => run(modId, () => InstallService.UninstallMod(game.id, profile.id, modId)),
       setEnabled: (modId, enabled) =>

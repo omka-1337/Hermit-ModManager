@@ -60,6 +60,23 @@ export interface InstallPlan {
     "conflicts": Conflict[] | null;
 }
 
+/**
+ * Options control how a package is installed.
+ */
+export interface Options {
+    /**
+     * ReplaceConflicts uninstalls installed mods that conflict with the
+     * packages being installed.
+     */
+    "replaceConflicts": boolean;
+
+    /**
+     * Modpack installs exact dependency versions, so everyone installing the
+     * same modpack gets the same set of mods.
+     */
+    "modpack": boolean;
+}
+
 export interface PlannedPackage {
     /**
      * Package is "<author>-<name>-<version>".

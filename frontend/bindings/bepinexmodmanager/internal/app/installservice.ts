@@ -15,10 +15,10 @@ import * as modinstall$0 from "../modinstall/models.js";
 /**
  * InstallPackage installs a Thunderstore package version with its dependencies
  * into a profile, emitting InstallProgressEvent along the way. Conflicting
- * installed mods are uninstalled only if replaceConflicts is set.
+ * installed mods are uninstalled only if opts.ReplaceConflicts is set.
  */
-export function InstallPackage(gameID: string, profileID: string, $namespace: string, name: string, version: string, replaceConflicts: boolean): $CancellablePromise<library$0.Profile> {
-    return $Call.ByID(3825584552, gameID, profileID, $namespace, name, version, replaceConflicts);
+export function InstallPackage(gameID: string, profileID: string, $namespace: string, name: string, version: string, opts: modinstall$0.Options): $CancellablePromise<library$0.Profile> {
+    return $Call.ByID(3825584552, gameID, profileID, $namespace, name, version, opts);
 }
 
 /**
@@ -32,8 +32,8 @@ export function OpenProfile(gameID: string, profileID: string): $CancellableProm
  * PlanInstall downloads a package with its dependencies and reports what
  * installing it would change, including conflicts with installed mods.
  */
-export function PlanInstall(gameID: string, profileID: string, $namespace: string, name: string, version: string): $CancellablePromise<modinstall$0.InstallPlan> {
-    return $Call.ByID(3551015545, gameID, profileID, $namespace, name, version);
+export function PlanInstall(gameID: string, profileID: string, $namespace: string, name: string, version: string, opts: modinstall$0.Options): $CancellablePromise<modinstall$0.InstallPlan> {
+    return $Call.ByID(3551015545, gameID, profileID, $namespace, name, version, opts);
 }
 
 /**

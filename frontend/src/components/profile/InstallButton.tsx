@@ -8,9 +8,10 @@ type Props = {
   namespace: string;
   name: string;
   latestVersion: string;
+  modpack: boolean;
 };
 
-export default function InstallButton({ namespace, name, latestVersion }: Props) {
+export default function InstallButton({ namespace, name, latestVersion, modpack }: Props) {
   const { installed, busy, progress, install, uninstall } = useProfile();
   const [error, setError] = useState("");
   const id = `${namespace}-${name}`;
@@ -55,7 +56,7 @@ export default function InstallButton({ namespace, name, latestVersion }: Props)
         {mod && mod.version === latestVersion ? (
           <Button disabled>{mod.active ? "Installed" : "Installed (disabled)"}</Button>
         ) : (
-          <Button variant="primary" disabled={busy !== null} onClick={() => act(() => install(namespace, name, latestVersion))}>
+          <Button variant="primary" disabled={busy !== null} onClick={() => act(() => install(namespace, name, latestVersion, modpack))}>
             {busy === id ? "Installing…" : mod ? `Update to ${latestVersion}` : "Install"}
           </Button>
         )}

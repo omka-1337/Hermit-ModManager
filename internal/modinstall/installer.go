@@ -32,28 +32,40 @@ type Progress struct {
 	Total   int64  `json:"total"`
 }
 
-type Downloader interface {
+// Repository is where packages come from (the Thunderstore client).
+type Repository interface {
 	DownloadPackage(ctx context.Context, ref thunderstore.PackageRef, progress func(done, total int64)) (thunderstore.Archive, error)
+	Versions(ctx context.Context, namespace, name string) ([]thunderstore.Version, error)
+}
+
+// Options control how a package is installed.
+type Options struct {
+	// ReplaceConflicts uninstalls installed mods that conflict with the
+	// packages being installed.
+	ReplaceConflicts bool `json:"replaceConflicts"`
+	// Modpack installs exact dependency versions, so everyone installing the
+	// same modpack gets the same set of mods.
+	Modpack bool `json:"modpack"`
 }
 
 // RulesFunc returns the install rules of a game.
 type RulesFunc func(ctx context.Context, game library.Game) Rules
 
 type Installer struct {
-	lib        *library.Library
-	downloader Downloader
-	rules      RulesFunc
+	lib   *library.Library
+	repo  Repository
+	rules RulesFunc
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
 }
 
 // NewInstaller creates an installer; rules may be nil to use DefaultRules.
-func NewInstaller(lib *library.Library, downloader Downloader, rules RulesFunc) *Installer {
+func NewInstaller(lib *library.Library, repo Repository, rules RulesFunc) *Installer {
 	if rules == nil {
 		rules = func(context.Context, library.Game) Rules { return DefaultRules() }
 	}
-	return &Installer{lib: lib, downloader: downloader, rules: rules, locks: map[string]*sync.Mutex{}}
+	return &Installer{lib: lib, repo: repo, rules: rules, locks: map[string]*sync.Mutex{}}
 }
 
 func (in *Installer) rulesFor(ctx context.Context, gameID string) (Rules, error) {
@@ -130,7 +142,7 @@ var ErrConflicts = errors.New("conflicts with installed mods")
 
 // PlanInstall resolves what installing a package would do, downloading archives
 // as needed, without changing the profile.
-func (in *Installer) PlanInstall(ctx context.Context, gameID, profileID string, ref thunderstore.PackageRef, onProgress func(Progress)) (InstallPlan, error) {
+func (in *Installer) PlanInstall(ctx context.Context, gameID, profileID string, ref thunderstore.PackageRef, opts Options, onProgress func(Progress)) (InstallPlan, error) {
 	if err := ref.Validate(); err != nil {
 		return InstallPlan{}, err
 	}
@@ -146,21 +158,21 @@ func (in *Installer) PlanInstall(ctx context.Context, gameID, profileID string, 
 	if err != nil {
 		return InstallPlan{}, err
 	}
-	plan, err := in.resolve(ctx, profile, ref, rules, in.progressFunc(gameID, profileID, ref, onProgress))
+	plan, err := in.resolve(ctx, profile, ref, opts, rules, in.progressFunc(gameID, profileID, ref, onProgress))
 	if err != nil {
 		return InstallPlan{}, err
 	}
 	return describePlan(profile, plan), nil
 }
 
-// Install installs a package version together with its dependencies.
-// Dependency versions are minimums: an installed dependency is kept if it is
-// the same or newer, otherwise the required version is installed.
+// Install installs a package version together with its dependencies, which
+// are chosen as described at resolve.
 //
 // If planned packages conflict with installed mods, Install fails with
-// ErrConflicts unless replaceConflicts is set, in which case the conflicting
-// mods are uninstalled first. Conflicts between planned packages always fail.
-func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref thunderstore.PackageRef, replaceConflicts bool, onProgress func(Progress)) (library.Profile, error) {
+// ErrConflicts unless opts.ReplaceConflicts is set, in which case the
+// conflicting mods are uninstalled first. Conflicts between planned packages
+// always fail.
+func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref thunderstore.PackageRef, opts Options, onProgress func(Progress)) (library.Profile, error) {
 	if err := ref.Validate(); err != nil {
 		return library.Profile{}, err
 	}
@@ -181,7 +193,7 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 		return library.Profile{}, err
 	}
 	report := in.progressFunc(gameID, profileID, ref, onProgress)
-	plan, err := in.resolve(ctx, profile, ref, rules, report)
+	plan, err := in.resolve(ctx, profile, ref, opts, rules, report)
 	if err != nil {
 		return library.Profile{}, err
 	}
@@ -191,7 +203,7 @@ func (in *Installer) Install(ctx context.Context, gameID, profileID string, ref 
 		if c.Blocking {
 			return library.Profile{}, fmt.Errorf("%s and %s cannot be installed together (%s)", c.Package, c.ModID, c.Reason)
 		}
-		if !replaceConflicts {
+		if !opts.ReplaceConflicts {
 			return library.Profile{}, fmt.Errorf("%s: %w: %s", c.Package, ErrConflicts, c.ModName)
 		}
 		if !slices.Contains(replace, c.ModID) {
@@ -235,9 +247,14 @@ func (in *Installer) progressFunc(gameID, profileID string, target thunderstore.
 }
 
 // resolve downloads the package and its dependency tree and returns the
-// packages to install, dependencies first. Dependencies already installed at a
-// sufficient version are left out; the requested package is always included.
-func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref thunderstore.PackageRef, rules Rules, report func(thunderstore.PackageRef, Stage, int64, int64)) ([]plannedPackage, error) {
+// packages to install, dependencies first. The requested package is always
+// included, in the requested version. Dependencies follow r2modman:
+//
+//   - for a modpack, the exact versions from the manifests are installed;
+//   - otherwise a missing dependency is installed in its latest version and an
+//     installed one is left alone, unless it is older than required, in which
+//     case it is updated to the latest version (r2modman keeps it as is).
+func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref thunderstore.PackageRef, opts Options, rules Rules, report func(thunderstore.PackageRef, Stage, int64, int64)) ([]plannedPackage, error) {
 	installed := map[string]string{}
 	for _, m := range profile.Mods {
 		installed[m.ID] = m.Version
@@ -252,11 +269,20 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 				return nil // being resolved (cycle) or already planned at a sufficient version
 			}
 		}
-		if v, ok := installed[r.ID()]; ok && !root && CompareVersions(v, r.Version) >= 0 {
-			return nil
+		if !root {
+			v, ok := installed[r.ID()]
+			switch {
+			case opts.Modpack && v == r.Version:
+				return nil
+			case opts.Modpack:
+			case ok && CompareVersions(v, r.Version) >= 0:
+				return nil
+			default:
+				r.Version = in.latestVersion(ctx, r)
+			}
 		}
 		planned[r.ID()] = -1
-		archive, err := in.downloader.DownloadPackage(ctx, r, func(done, total int64) {
+		archive, err := in.repo.DownloadPackage(ctx, r, func(done, total int64) {
 			report(r, StageDownload, done, total)
 		})
 		if err != nil {
@@ -295,6 +321,22 @@ func (in *Installer) resolve(ctx context.Context, profile library.Profile, ref t
 		}
 	}
 	return result, nil
+}
+
+// latestVersion returns the newest published version of a package, or the
+// given version if the list cannot be fetched.
+func (in *Installer) latestVersion(ctx context.Context, r thunderstore.PackageRef) string {
+	versions, err := in.repo.Versions(ctx, r.Namespace, r.Name)
+	if err != nil {
+		return r.Version
+	}
+	latest := r.Version
+	for _, v := range versions {
+		if CompareVersions(v.VersionNumber, latest) > 0 {
+			latest = v.VersionNumber
+		}
+	}
+	return latest
 }
 
 func describePlan(profile library.Profile, plan []plannedPackage) InstallPlan {
