@@ -1,0 +1,31 @@
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    groups:
+      go-minor:
+        update-types: [minor, patch]
+    ignore:
+      # The Go module and the frontend runtime must be updated together by hand.
+      - dependency-name: github.com/wailsapp/wails/v3
+
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: dev
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "@wailsio/runtime"
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
