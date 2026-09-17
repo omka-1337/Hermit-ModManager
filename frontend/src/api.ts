@@ -3,7 +3,7 @@ import { CancelError, Dialogs } from "@wailsio/runtime";
 export { Backend, Library, Runtime } from "../bindings/hermit/internal/library";
 export type { Game, GameCandidate, Mod, Profile } from "../bindings/hermit/internal/library";
 export { Store as SettingsStore } from "../bindings/hermit/internal/settings";
-export { UIMode } from "../bindings/hermit/internal/settings";
+export { UIMode, BrowseView } from "../bindings/hermit/internal/settings";
 export type { Settings } from "../bindings/hermit/internal/settings";
 export {
   BrowseService,

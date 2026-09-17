@@ -13,8 +13,9 @@ import {
 import { formatAgo, formatCount } from "../../format";
 import { ErrorText, inputClass, NsfwBadge } from "../ui";
 import PackageDetails from "./PackageDetails";
-import PackageIcon from "./PackageIcon";
-import { useLayout } from "../../uimode";
+import PackageIcon, { PackageCover } from "./PackageIcon";
+import { BrowseView } from "../../api";
+import { useUIMode } from "../../uimode";
 
 const orderings: { value: Ordering; label: string }[] = [
   { value: Ordering.OrderMostDownloaded, label: "Most downloaded" },
@@ -42,7 +43,7 @@ export function isModpack(pkg: { categories?: { slug: string }[] | null }): bool
 
 // PackageBrowser searches and pages through a game's Thunderstore packages.
 export default function PackageBrowser({ game, modpacksOnly, isInstalled, renderActions }: Props) {
-  const layout = useLayout();
+  const { layout, cards, setBrowseView } = useUIMode();
   const [community, setCommunity] = useState<Community | null>(null);
   const [filters, setFilters] = useState<Filters | null>(null);
   const [fatal, setFatal] = useState("");
@@ -176,48 +177,101 @@ export default function PackageBrowser({ game, modpacksOnly, isInstalled, render
               </option>
             ))}
           </select>
+          <div className="flex shrink-0 gap-1">
+            <ViewButton
+              label="Cards"
+              active={cards}
+              onClick={() => setBrowseView(BrowseView.BrowseViewCards)}
+              icon={<CardsIcon />}
+            />
+            <ViewButton
+              label="List"
+              active={!cards}
+              onClick={() => setBrowseView(BrowseView.BrowseViewList)}
+              icon={<ListIcon />}
+            />
+          </div>
         </div>
 
         <div ref={listRef} className="flex-1 overflow-y-auto">
           <div className="px-6 py-2 text-xs text-zinc-500">{formatCount(total)} packages</div>
-          <ul className="flex flex-col px-3 pb-3">
-            {packages.map((p) => {
-              const active = selected?.namespace === p.namespace && selected?.name === p.name;
-              return (
-                <li key={`${p.namespace}-${p.name}`}>
-                  <button
-                    onClick={() => setSelected({ namespace: p.namespace, name: p.name })}
-                    className={`flex w-full gap-3 rounded-md px-3 py-2.5 text-left ${
-                      active ? "bg-zinc-800" : "hover:bg-zinc-800/50"
-                    }`}
-                  >
-                    <PackageIcon url={p.icon_url} size={48} />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex items-baseline gap-2">
+          {cards ? (
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3 px-4 pb-3">
+              {packages.map((p) => {
+                const active = selected?.namespace === p.namespace && selected?.name === p.name;
+                return (
+                  <li key={`${p.namespace}-${p.name}`}>
+                    <button
+                      onClick={() => setSelected({ namespace: p.namespace, name: p.name })}
+                      className={`flex h-full w-full flex-col overflow-hidden rounded-lg border text-left transition ${
+                        active ? "border-indigo-500 bg-zinc-800" : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-700"
+                      }`}
+                    >
+                      <PackageCover url={p.icon_url} />
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-2.5">
                         <span className="truncate text-sm font-medium">{p.name}</span>
                         <span className="truncate text-xs text-zinc-500">by {p.namespace}</span>
-                        {p.is_nsfw && <NsfwBadge />}
-                        {!modpacksOnly && isModpack(p) && (
-                          <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-indigo-300">
-                            MODPACK
-                          </span>
-                        )}
-                        {isInstalled?.(`${p.namespace}-${p.name}`) && (
-                          <span className="ml-auto shrink-0 text-xs text-indigo-400">Installed</span>
-                        )}
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {p.is_nsfw && <NsfwBadge />}
+                          {!modpacksOnly && isModpack(p) && (
+                            <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-indigo-300">
+                              MODPACK
+                            </span>
+                          )}
+                          {isInstalled?.(`${p.namespace}-${p.name}`) && (
+                            <span className="text-xs text-indigo-400">Installed</span>
+                          )}
+                        </div>
+                        <div className="mt-auto flex gap-3 pt-2 text-xs text-zinc-500">
+                          <span>↓ {formatCount(p.download_count)}</span>
+                          <span>♥ {formatCount(p.rating_count)}</span>
+                        </div>
                       </div>
-                      <p className="line-clamp-2 text-xs text-zinc-400">{p.description}</p>
-                      <div className="mt-1 flex gap-3 text-xs text-zinc-500">
-                        <span>↓ {formatCount(p.download_count)}</span>
-                        <span>♥ {formatCount(p.rating_count)}</span>
-                        <span>{formatAgo(p.last_updated)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <ul className="flex flex-col px-3 pb-3">
+              {packages.map((p) => {
+                const active = selected?.namespace === p.namespace && selected?.name === p.name;
+                return (
+                  <li key={`${p.namespace}-${p.name}`}>
+                    <button
+                      onClick={() => setSelected({ namespace: p.namespace, name: p.name })}
+                      className={`flex w-full gap-3 rounded-md px-3 py-2.5 text-left ${
+                        active ? "bg-zinc-800" : "hover:bg-zinc-800/50"
+                      }`}
+                    >
+                      <PackageIcon url={p.icon_url} size={48} />
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <div className="flex items-baseline gap-2">
+                          <span className="truncate text-sm font-medium">{p.name}</span>
+                          <span className="truncate text-xs text-zinc-500">by {p.namespace}</span>
+                          {p.is_nsfw && <NsfwBadge />}
+                          {!modpacksOnly && isModpack(p) && (
+                            <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-indigo-300">
+                              MODPACK
+                            </span>
+                          )}
+                          {isInstalled?.(`${p.namespace}-${p.name}`) && (
+                            <span className="ml-auto shrink-0 text-xs text-indigo-400">Installed</span>
+                          )}
+                        </div>
+                        <p className="line-clamp-2 text-xs text-zinc-400">{p.description}</p>
+                        <div className="mt-1 flex gap-3 text-xs text-zinc-500">
+                          <span>↓ {formatCount(p.download_count)}</span>
+                          <span>♥ {formatCount(p.rating_count)}</span>
+                          <span>{formatAgo(p.last_updated)}</span>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           <div ref={sentinelRef} />
           <div className="px-6 pb-6">
             <ErrorText>{error}</ErrorText>
@@ -251,5 +305,51 @@ export default function PackageBrowser({ game, modpacksOnly, isInstalled, render
         </aside>
       )}
     </div>
+  );
+}
+
+function ViewButton({
+  label,
+  active,
+  onClick,
+  icon,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+}) {
+  return (
+    <button
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`flex h-9 w-9 items-center justify-center rounded-md border ${
+        active
+          ? "border-zinc-700 bg-zinc-800 text-zinc-100"
+          : "border-transparent text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300"
+      }`}
+    >
+      {icon}
+    </button>
+  );
+}
+
+function CardsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
   );
 }

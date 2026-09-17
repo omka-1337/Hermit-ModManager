@@ -7,6 +7,7 @@ export {
 };
 
 export {
+    BrowseView,
     UIMode
 } from "./models.js";
 
