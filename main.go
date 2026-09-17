@@ -12,6 +12,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"hermit/internal/app"
+	"hermit/internal/github"
 	"hermit/internal/launch"
 	"hermit/internal/library"
 	"hermit/internal/modinstall"
@@ -35,6 +36,7 @@ type backend struct {
 	steamRoots []string
 	lib        *library.Library
 	ts         *thunderstore.Client
+	github     *github.Client
 	installer  *modinstall.Installer
 }
 
@@ -58,12 +60,16 @@ func newBackend() (*backend, error) {
 		}
 		return modinstall.RulesFromSchema(schema, game.SteamAppID, game.Executable)
 	}
+	gh := github.NewClient(github.DefaultAPIURL, app.ID+"/"+app.Version, filepath.Join(root, "cache", "github"))
+	installer := modinstall.NewInstaller(lib, ts, rules)
+	installer.SetGitHub(gh)
 	return &backend{
 		root:       root,
 		steamRoots: steamRoots,
 		lib:        lib,
 		ts:         ts,
-		installer:  modinstall.NewInstaller(lib, ts, rules),
+		github:     gh,
+		installer:  installer,
 	}, nil
 }
 
@@ -89,7 +95,7 @@ func main() {
 			application.NewService(b.lib),
 			application.NewService(settingsStore),
 			application.NewService(app.NewBrowseService(b.lib, b.ts, settingsStore)),
-			application.NewService(app.NewInstallService(b.installer)),
+			application.NewService(app.NewInstallService(b.installer, b.github)),
 			application.NewService(app.NewLaunchService(b.lib, b.steamRoots)),
 			application.NewService(app.NewIconService(b.steamRoots)),
 			application.NewService(app.NewConfigService(b.lib)),

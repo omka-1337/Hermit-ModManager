@@ -7,16 +7,59 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as github$0 from "../github/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as library$0 from "../library/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as modinstall$0 from "../modinstall/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
 
 /**
  * CheckUpdates lists installed Thunderstore mods with a newer version.
  */
 export function CheckUpdates(gameID: string, profileID: string): $CancellablePromise<modinstall$0.Update[] | null> {
     return $Call.ByID(306278890, gameID, profileID);
+}
+
+/**
+ * DownloadGitHubAsset downloads a release file and suggests how to name the
+ * mod: from its manifest if it has one, otherwise after the repository and tag.
+ */
+export function DownloadGitHubAsset(owner: string, repo: string, tag: string, asset: github$0.Asset): $CancellablePromise<modinstall$0.LocalPackage> {
+    return $Call.ByID(3591543941, owner, repo, tag, asset);
+}
+
+/**
+ * GitHubReleases lists the releases of a repository given as owner/repo or URL.
+ */
+export function GitHubReleases(input: string): $CancellablePromise<$models.GitHubRepo> {
+    return $Call.ByID(821711473, input);
+}
+
+/**
+ * InspectFile reads a .zip or .dll mod file and suggests its author, name and version.
+ */
+export function InspectFile(path: string): $CancellablePromise<modinstall$0.LocalPackage> {
+    return $Call.ByID(2133734766, path);
+}
+
+/**
+ * InstallFile installs a local mod file.
+ */
+export function InstallFile(gameID: string, profileID: string, pkg: modinstall$0.LocalPackage, replaceConflicts: boolean): $CancellablePromise<library$0.Profile> {
+    return $Call.ByID(2681568897, gameID, profileID, pkg, replaceConflicts);
+}
+
+/**
+ * InstallGitHub installs a downloaded release file as a mod that can be updated from GitHub.
+ */
+export function InstallGitHub(gameID: string, profileID: string, pkg: modinstall$0.LocalPackage, owner: string, repo: string, tag: string, asset: string, replaceConflicts: boolean): $CancellablePromise<library$0.Profile> {
+    return $Call.ByID(3207824252, gameID, profileID, pkg, owner, repo, tag, asset, replaceConflicts);
 }
 
 /**
@@ -43,6 +86,13 @@ export function OpenProfile(gameID: string, profileID: string): $CancellableProm
 }
 
 /**
+ * PlanFile reports conflicts of installing a local or downloaded mod file.
+ */
+export function PlanFile(gameID: string, profileID: string, pkg: modinstall$0.LocalPackage): $CancellablePromise<modinstall$0.InstallPlan> {
+    return $Call.ByID(33992953, gameID, profileID, pkg);
+}
+
+/**
  * PlanInstall downloads a package with its dependencies and reports what
  * installing it would change, including conflicts with installed mods.
  */
@@ -66,4 +116,11 @@ export function UninstallMod(gameID: string, profileID: string, modID: string): 
  */
 export function UpdateAll(gameID: string, profileID: string): $CancellablePromise<modinstall$0.UpdateResult> {
     return $Call.ByID(4173545652, gameID, profileID);
+}
+
+/**
+ * UpdateMod updates one Thunderstore or GitHub mod to its latest version.
+ */
+export function UpdateMod(gameID: string, profileID: string, modID: string): $CancellablePromise<library$0.Profile> {
+    return $Call.ByID(2266433523, gameID, profileID, modID);
 }

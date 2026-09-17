@@ -10,6 +10,7 @@ export {
 export type {
     Conflict,
     InstallPlan,
+    LocalPackage,
     Options,
     PlannedPackage,
     Progress,

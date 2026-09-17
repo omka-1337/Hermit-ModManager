@@ -90,12 +90,17 @@ type ModSourceType string
 const (
 	SourceLocal        ModSourceType = "local"
 	SourceThunderstore ModSourceType = "thunderstore"
-	SourceURL          ModSourceType = "url"
+	SourceGitHub       ModSourceType = "github"
 )
 
-// ModSource describes where to re-fetch a mod when importing a profile.
+// ModSource describes where a mod came from and how to fetch it again.
 type ModSource struct {
-	Type   ModSourceType `json:"type"`
-	URL    string        `json:"url,omitempty"`
-	SHA256 string        `json:"sha256,omitempty"`
+	Type ModSourceType `json:"type"`
+	// URL is the Thunderstore download URL, the GitHub repository URL, or the
+	// file name of a local file.
+	URL    string `json:"url,omitempty"`
+	SHA256 string `json:"sha256,omitempty"`
+	// Release and Asset identify the GitHub release file the mod came from.
+	Release string `json:"release,omitempty"`
+	Asset   string `json:"asset,omitempty"`
 }

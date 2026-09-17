@@ -28,6 +28,8 @@ type ProfileState = {
   install: (namespace: string, name: string, version: string, modpack: boolean) => Promise<void>;
   // openProfile switches to another profile of the game.
   openProfile: (profileId: string) => void;
+  // applyProfile shows a profile returned by an operation done elsewhere.
+  applyProfile: (profile: Profile) => void;
   uninstall: (modId: string) => Promise<void>;
   setEnabled: (modId: string, enabled: boolean) => Promise<void>;
   // updates maps ids of outdated mods to their latest version.
@@ -164,17 +166,14 @@ export function ProfileProvider({ game, profile, onProfileChange, onOpenProfile,
       report,
       install,
       openProfile: onOpenProfile,
+      applyProfile: onProfileChange,
       uninstall: (modId) => run(modId, () => InstallService.UninstallMod(game.id, profile.id, modId)),
       setEnabled: (modId, enabled) =>
         run(modId, () => InstallService.SetModEnabled(game.id, profile.id, modId, enabled)),
       updates,
       checkingUpdates,
       checkUpdates,
-      update: async (modId) => {
-        const mod = profile.mods?.find((m) => m.id === modId);
-        const version = updates.get(modId);
-        if (mod && version) await install(mod.author, mod.name, version, false);
-      },
+      update: (modId) => run(modId, () => InstallService.UpdateMod(game.id, profile.id, modId)),
       updateAll: async () => {
         let result: UpdateResult | null = null;
         await run("update-all", async () => {
@@ -184,7 +183,20 @@ export function ProfileProvider({ game, profile, onProfileChange, onOpenProfile,
         return result;
       },
     }),
-    [game, profile, busy, progress, report, run, install, updates, checkingUpdates, checkUpdates, onOpenProfile],
+    [
+      game,
+      profile,
+      busy,
+      progress,
+      report,
+      run,
+      install,
+      updates,
+      checkingUpdates,
+      checkUpdates,
+      onOpenProfile,
+      onProfileChange,
+    ],
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
@@ -213,7 +225,7 @@ function packageName(pkg: string): string {
   return id.slice(id.lastIndexOf("-") + 1);
 }
 
-function conflictMessage(conflicts: Conflict[]): string {
+export function conflictMessage(conflicts: Conflict[]): string {
   const lines = conflicts.map((c) =>
     c.reason === ConflictReason.ConflictLoader
       ? `• ${packageName(c.package)} is a BepInEx loader, only one can be installed: ${c.modName} will be uninstalled.`

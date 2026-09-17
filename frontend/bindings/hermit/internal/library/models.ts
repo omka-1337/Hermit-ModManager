@@ -106,12 +106,23 @@ export interface Mod {
 }
 
 /**
- * ModSource describes where to re-fetch a mod when importing a profile.
+ * ModSource describes where a mod came from and how to fetch it again.
  */
 export interface ModSource {
     "type": ModSourceType;
+
+    /**
+     * URL is the Thunderstore download URL, the GitHub repository URL, or the
+     * file name of a local file.
+     */
     "url"?: string;
     "sha256"?: string;
+
+    /**
+     * Release and Asset identify the GitHub release file the mod came from.
+     */
+    "release"?: string;
+    "asset"?: string;
 }
 
 export enum ModSourceType {
@@ -122,7 +133,7 @@ export enum ModSourceType {
 
     SourceLocal = "local",
     SourceThunderstore = "thunderstore",
-    SourceURL = "url",
+    SourceGitHub = "github",
 };
 
 /**

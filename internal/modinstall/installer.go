@@ -68,9 +68,10 @@ type Options struct {
 type RulesFunc func(ctx context.Context, game library.Game) Rules
 
 type Installer struct {
-	lib   *library.Library
-	repo  Repository
-	rules RulesFunc
+	lib    *library.Library
+	repo   Repository
+	rules  RulesFunc
+	github GitHubSource
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
@@ -112,6 +113,8 @@ type plannedPackage struct {
 	// overwriteConfigs replaces existing config files with the package's.
 	overwriteConfigs bool
 	asProfile        bool
+	// source overrides the Thunderstore source recorded for the mod.
+	source *library.ModSource
 }
 
 type Action string
@@ -530,18 +533,37 @@ func (in *Installer) CheckUpdates(ctx context.Context, gameID, profileID string)
 		limit   = make(chan struct{}, 6)
 	)
 	for _, m := range profile.Mods {
-		if m.Source.Type != library.SourceThunderstore {
+		var check func() (string, bool)
+		switch m.Source.Type {
+		case library.SourceThunderstore:
+			ref := thunderstore.PackageRef{Namespace: m.Author, Name: m.Name, Version: m.Version}
+			check = func() (string, bool) {
+				latest := in.latestVersion(ctx, ref)
+				return latest, CompareVersions(latest, ref.Version) > 0
+			}
+		case library.SourceGitHub:
+			if in.github == nil {
+				continue
+			}
+			check = func() (string, bool) {
+				release, err := in.latestGitHubRelease(ctx, m)
+				if err != nil || release.Tag == m.Source.Release {
+					return "", false
+				}
+				latest := NormalizeVersion(release.Tag)
+				return latest, CompareVersions(latest, m.Version) > 0
+			}
+		default:
 			continue
 		}
-		ref := thunderstore.PackageRef{Namespace: m.Author, Name: m.Name, Version: m.Version}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			limit <- struct{}{}
 			defer func() { <-limit }()
-			if latest := in.latestVersion(ctx, ref); CompareVersions(latest, ref.Version) > 0 {
+			if latest, newer := check(); newer {
 				mu.Lock()
-				updates = append(updates, Update{ModID: ref.ID(), Current: ref.Version, Latest: latest})
+				updates = append(updates, Update{ModID: m.ID, Current: m.Version, Latest: latest})
 				mu.Unlock()
 			}
 		}()
@@ -579,11 +601,7 @@ func (in *Installer) UpdateAll(ctx context.Context, gameID, profileID string, on
 				continue
 			}
 		}
-		ref, err := thunderstore.ParseDependency(u.ModID + "-" + u.Latest)
-		if err == nil {
-			_, err = in.Install(ctx, gameID, profileID, ref, Options{}, onProgress)
-		}
-		if err != nil {
+		if _, err := in.UpdateMod(ctx, gameID, profileID, u.ModID, onProgress); err != nil {
 			if ctx.Err() != nil {
 				return UpdateResult{}, ctx.Err()
 			}
@@ -594,6 +612,28 @@ func (in *Installer) UpdateAll(ctx context.Context, gameID, profileID string, on
 	}
 	result.Profile, err = in.lib.GetProfile(gameID, profileID)
 	return result, err
+}
+
+// UpdateMod updates a Thunderstore or GitHub mod to its latest version.
+func (in *Installer) UpdateMod(ctx context.Context, gameID, profileID, modID string, onProgress func(Progress)) (library.Profile, error) {
+	profile, err := in.lib.GetProfile(gameID, profileID)
+	if err != nil {
+		return library.Profile{}, err
+	}
+	i := slices.IndexFunc(profile.Mods, func(m library.Mod) bool { return m.ID == modID })
+	if i < 0 {
+		return library.Profile{}, fmt.Errorf("mod %q: %w", modID, library.ErrNotFound)
+	}
+	m := profile.Mods[i]
+	switch m.Source.Type {
+	case library.SourceThunderstore:
+		ref := thunderstore.PackageRef{Namespace: m.Author, Name: m.Name, Version: m.Version}
+		ref.Version = in.latestVersion(ctx, ref)
+		return in.Install(ctx, gameID, profileID, ref, Options{}, onProgress)
+	case library.SourceGitHub:
+		return in.updateGitHub(ctx, gameID, profileID, m, onProgress)
+	}
+	return library.Profile{}, fmt.Errorf("%s was installed from a file and cannot be updated automatically", m.Name)
 }
 
 // latestVersion returns the newest published version of a package, or the
@@ -752,6 +792,10 @@ func (in *Installer) installOne(gameID, profileID, profileDir string, p plannedP
 			},
 			Dependencies: deps,
 			Files:        files,
+		}
+		if p.source != nil {
+			mod.Source = *p.source
+			mod.Source.SHA256 = p.archive.SHA256
 		}
 		mod.Plugins = scanPlugins(profileDir, mod)
 		prof.Mods = append(prof.Mods, mod)

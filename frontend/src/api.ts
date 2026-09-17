@@ -18,7 +18,15 @@ export type { ConfigContent } from "../bindings/hermit/internal/app";
 export type { Change, Entry, FileInfo as ConfigFileInfo } from "../bindings/hermit/internal/configs";
 export type { LaunchInfo } from "../bindings/hermit/internal/app";
 export { ConflictReason, Stage } from "../bindings/hermit/internal/modinstall";
-export type { Conflict, InstallPlan, Progress, UpdateResult } from "../bindings/hermit/internal/modinstall";
+export type {
+  Conflict,
+  InstallPlan,
+  LocalPackage,
+  Progress,
+  UpdateResult,
+} from "../bindings/hermit/internal/modinstall";
+export type { GitHubRepo } from "../bindings/hermit/internal/app";
+export type { Asset as GitHubAsset, Release as GitHubRelease } from "../bindings/hermit/internal/github";
 export { IssueKind } from "../bindings/hermit/internal/launch";
 export type { Issue, Report } from "../bindings/hermit/internal/launch";
 export { Ordering } from "../bindings/hermit/internal/thunderstore";
