@@ -31,7 +31,13 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
   const openGame = (id: string) => {
     setOpenProfile(null);
     setShowSettings(false);
+    setAdding(false);
     onSelect(id);
+  };
+
+  const pickAdded = async (id: string) => {
+    openGame(id);
+    await onGamesChanged(id);
   };
 
   const entries: Entry[] = [
@@ -41,7 +47,9 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
   ];
   const currentEntry = showSettings
     ? entries.length - 1
-    : entries.findIndex((e) => e.kind === "game" && e.game.id === selectedId);
+    : adding
+      ? entries.length - 2
+      : entries.findIndex((e) => e.kind === "game" && e.game.id === selectedId);
   const [barIndex, setBarIndex] = useState(Math.max(currentEntry, 0));
 
   // Follow selections made elsewhere, e.g. after adding a game.
@@ -49,36 +57,43 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
     if (currentEntry >= 0) setBarIndex(currentEntry);
   }, [currentEntry]);
 
-  // Moving onto a game or onto Settings switches the view right away; "add"
-  // only highlights, because opening a dialog while browsing would be rude.
+  // In the console layout every entry is a page, so moving the highlight
+  // switches the view right away.
   const goto = (index: number) => {
     const wrapped = (index + entries.length) % entries.length;
     setBarIndex(wrapped);
     const entry = entries[wrapped];
-    if (entry.kind === "game") openGame(entry.game.id);
-    if (entry.kind === "settings") {
-      setOpenProfile(null);
-      setShowSettings(true);
-    }
+    setOpenProfile(null);
+    setShowSettings(entry.kind === "settings");
+    setAdding(entry.kind === "add");
+    if (entry.kind === "game") onSelect(entry.game.id);
   };
 
   useGamepad(
     {
       onPrev: () => goto(barIndex - 1),
       onNext: () => goto(barIndex + 1),
-      onAccept: () => {
-        if (entries[barIndex]?.kind === "add") setAdding(true);
-      },
       onBack: () => {
         if (openProfile) setOpenProfile(null);
-        else if (showSettings && selected) openGame(selected.id);
+        else if (!selected) return;
+        else if (showSettings || adding) openGame(selected.id);
       },
     },
-    deck && !adding,
+    deck,
+  );
+
+  const addGamePage = (
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+      <h2 className="text-xl font-semibold">Add game</h2>
+      <GamePicker onAdded={(g) => pickAdded(g.id)} />
+    </div>
   );
 
   const content = showSettings ? (
     <SettingsView />
+  ) : deck && (adding || !selected) ? (
+    // With no games at all the bar highlights Add game, so show its page.
+    addGamePage
   ) : selected && openProfile?.gameId === selected.id ? (
     <ProfileView
       key={openProfile.profileId}
@@ -107,7 +122,7 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
     </div>
   );
 
-  const addGameModal = adding && (
+  const addGameModal = !deck && adding && (
     <Modal title="Add game" size="lg" onClose={() => setAdding(false)}>
       <GamePicker
         onAdded={async (g) => {
@@ -126,10 +141,9 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
   if (deck) {
     return (
       <div className="flex h-full flex-col">
-        <GameBar entries={entries} index={barIndex} onPick={goto} onAdd={() => setAdding(true)} />
+        <GameBar entries={entries} index={barIndex} onPick={goto} />
         <main className="min-h-0 flex-1 overflow-auto">{content}</main>
-        <HintBar entry={entries[barIndex]} inProfile={openProfile !== null} />
-        {addGameModal}
+        <HintBar canGoBack={openProfile !== null || ((showSettings || adding) && selected !== null)} />
       </div>
     );
   }
@@ -198,12 +212,11 @@ type GameBarProps = {
   entries: Entry[];
   index: number;
   onPick: (index: number) => void;
-  onAdd: () => void;
 };
 
 // GameBar is the console layout's row of games, switched with LB/RB. The
 // selected entry stays in the middle: the strip slides under it.
-function GameBar({ entries, index, onPick, onAdd }: GameBarProps) {
+function GameBar({ entries, index, onPick }: GameBarProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const strip = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState(0);
@@ -246,14 +259,7 @@ function GameBar({ entries, index, onPick, onAdd }: GameBarProps) {
             }
             if (entry.kind === "add") {
               return (
-                <button
-                  key="add"
-                  onClick={() => {
-                    onPick(i);
-                    onAdd();
-                  }}
-                  className={`${tile} border border-dashed border-zinc-700`}
-                >
+                <button key="add" onClick={() => onPick(i)} className={`${tile} border border-dashed border-zinc-700`}>
                   <PlusIcon />
                   Add game
                 </button>
@@ -281,12 +287,8 @@ function ShoulderHint({ label }: { label: string }) {
   );
 }
 
-function HintBar({ entry, inProfile }: { entry: Entry | undefined; inProfile: boolean }) {
-  const hints = [
-    "LB / RB — switch",
-    entry?.kind === "add" ? "A — add game" : null,
-    inProfile ? "B — back to game" : null,
-  ].filter(Boolean);
+function HintBar({ canGoBack }: { canGoBack: boolean }) {
+  const hints = ["LB / RB — switch", canGoBack ? "B — back" : null].filter(Boolean);
   return (
     <footer className="flex gap-4 border-t border-zinc-800 bg-zinc-900 px-4 py-1.5 text-xs text-zinc-500">
       {hints.map((hint) => (
