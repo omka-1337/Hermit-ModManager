@@ -21,9 +21,10 @@ export function useUIMode(): UIModeState {
   return ctx;
 }
 
-// useLayout is a shortcut for components that only switch on the layout.
+// useLayout is for components that only switch on the layout. It also works
+// outside the provider, e.g. in the window frame shown while loading.
 export function useLayout(): Layout {
-  return useUIMode().layout;
+  return useContext(UIModeContext)?.layout ?? "desktop";
 }
 
 type Props = {
