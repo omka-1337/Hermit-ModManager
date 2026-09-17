@@ -17,7 +17,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
+
+	"bepinexmodmanager/internal/steam"
 )
 
 var (
@@ -31,17 +34,20 @@ var (
 const DefaultProfileName = "Default"
 
 type Library struct {
-	root string
-	mu   sync.Mutex
+	root       string
+	steamRoots []string
+	mu         sync.Mutex
 }
 
-func New(root string) (*Library, error) {
+// New opens the library at root. steamRoots are Steam installations used for
+// game discovery (see steam.DefaultRoots).
+func New(root string, steamRoots []string) (*Library, error) {
 	for _, dir := range []string{root, filepath.Join(root, "games"), filepath.Join(root, "cache")} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("create library dir: %w", err)
 		}
 	}
-	return &Library{root: root}, nil
+	return &Library{root: root, steamRoots: steamRoots}, nil
 }
 
 func (l *Library) gamesDir() string         { return filepath.Join(l.root, "games") }
@@ -83,26 +89,49 @@ func (l *Library) GetGame(id string) (Game, error) {
 	return l.loadGame(id)
 }
 
-// InspectGamePath suggests a name and runtime for a game folder without adding it.
-func (l *Library) InspectGamePath(path string) (GameCandidate, error) {
+// DiscoverGames lists BepInEx-compatible (Unity) games installed via Steam.
+func (l *Library) DiscoverGames() ([]GameCandidate, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	path, err := filepath.Abs(path)
+	var result []GameCandidate
+	for _, app := range steam.InstalledApps(l.steamRoots) {
+		d := DetectGame(app.InstallPath)
+		if !d.Unity {
+			continue
+		}
+		c := GameCandidate{Path: app.InstallPath, Name: app.Name, SteamAppID: app.AppID, Detection: d}
+		_, err := l.findGameByPath(app.InstallPath)
+		c.AlreadyAdded = err == nil
+		result = append(result, c)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result, nil
+}
+
+// InspectGamePath describes a manually picked folder without adding it.
+func (l *Library) InspectGamePath(path string) (GameCandidate, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.inspect(path)
+}
+
+func (l *Library) inspect(path string) (GameCandidate, error) {
+	path, err := canonicalDir(path)
 	if err != nil {
 		return GameCandidate{}, err
 	}
-	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
-		return GameCandidate{}, ErrInvalidPath
-	}
-	exe, runtime := detectUnityGame(path)
-	c := GameCandidate{Path: path, Name: exe, Runtime: runtime}
-	if c.Name == "" {
+	c := GameCandidate{Path: path, Detection: DetectGame(path)}
+	if app, ok := steam.FindAppByPath(l.steamRoots, path); ok {
+		c.Name = app.Name
+		c.SteamAppID = app.AppID
+	} else if exe := c.Detection.Executable; exe != "" {
+		c.Name = strings.TrimSuffix(exe, filepath.Ext(exe))
+	} else {
 		c.Name = filepath.Base(path)
 	}
-	if _, err := l.findGameByPath(path); err == nil {
-		c.AlreadyAdded = true
-	}
+	_, err = l.findGameByPath(path)
+	c.AlreadyAdded = err == nil
 	return c, nil
 }
 
@@ -115,16 +144,12 @@ func (l *Library) AddGame(name, path string) (Game, error) {
 	if name == "" {
 		return Game{}, ErrEmptyName
 	}
-	path, err := filepath.Abs(path)
+	c, err := l.inspect(path)
 	if err != nil {
 		return Game{}, err
 	}
-	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
-		return Game{}, ErrInvalidPath
-	}
-
-	if _, err := l.findGameByPath(path); err == nil {
-		return Game{}, fmt.Errorf("game at %s: %w", path, ErrAlreadyExists)
+	if c.AlreadyAdded {
+		return Game{}, fmt.Errorf("game at %s: %w", c.Path, ErrAlreadyExists)
 	}
 	ids, err := listDirs(l.gamesDir())
 	if err != nil {
@@ -132,10 +157,13 @@ func (l *Library) AddGame(name, path string) (Game, error) {
 	}
 
 	g := Game{
-		ID:      uniqueID(slugify(name, "game"), ids),
-		Name:    name,
-		Path:    path,
-		Runtime: DetectRuntime(path),
+		ID:         uniqueID(slugify(name, "game"), ids),
+		Name:       name,
+		Path:       c.Path,
+		Runtime:    c.Detection.Runtime,
+		Backend:    c.Detection.Backend,
+		Executable: c.Detection.Executable,
+		SteamAppID: c.SteamAppID,
 	}
 	p, err := l.createProfile(g.ID, DefaultProfileName)
 	if err != nil {

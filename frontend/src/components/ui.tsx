@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { Runtime } from "../api";
+import { Backend, Runtime } from "../api";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -36,15 +36,27 @@ export function RuntimeBadge({ runtime }: { runtime: Runtime }) {
   return <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">{runtimeLabels[runtime] ?? runtimeLabels[Runtime.RuntimeUnknown]}</span>;
 }
 
+const backendLabels: Partial<Record<Backend, string>> = {
+  [Backend.BackendMono]: "Mono",
+  [Backend.BackendIL2CPP]: "IL2CPP",
+};
+
+export function BackendBadge({ backend }: { backend: Backend }) {
+  const label = backendLabels[backend];
+  return label ? <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">{label}</span> : null;
+}
+
 export function ErrorText({ children }: { children: ReactNode }) {
   return children ? <p className="text-sm text-red-400">{children}</p> : null;
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+type ModalProps = { title: string; onClose: () => void; children: ReactNode; wide?: boolean };
+
+export function Modal({ title, onClose, children, wide }: ModalProps) {
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-6" onMouseDown={onClose}>
       <div
-        className="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl"
+        className={`w-full ${wide ? "max-w-2xl" : "max-w-lg"} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 className="mb-4 text-lg font-semibold">{title}</h2>

@@ -1,6 +1,6 @@
 import { Dialogs } from "@wailsio/runtime";
 
-export { Library, Runtime } from "../bindings/bepinexmodmanager/internal/library";
+export { Backend, Library, Runtime } from "../bindings/bepinexmodmanager/internal/library";
 export type { Game, GameCandidate, Profile } from "../bindings/bepinexmodmanager/internal/library";
 export { Store as SettingsStore } from "../bindings/bepinexmodmanager/internal/settings";
 export { InfoService } from "../bindings/bepinexmodmanager/internal/app";

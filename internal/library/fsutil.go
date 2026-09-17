@@ -47,6 +47,19 @@ func writeJSON(path string, v any) error {
 	return os.Rename(tmp.Name(), path)
 }
 
+// canonicalDir returns the absolute, symlink-resolved path of an existing directory.
+func canonicalDir(path string) (string, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil || !isDir(path) {
+		return "", ErrInvalidPath
+	}
+	return path, nil
+}
+
 func listDirs(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {

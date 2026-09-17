@@ -11,6 +11,7 @@ import (
 	"bepinexmodmanager/internal/app"
 	"bepinexmodmanager/internal/library"
 	"bepinexmodmanager/internal/settings"
+	"bepinexmodmanager/internal/steam"
 )
 
 //go:embed all:frontend/dist
@@ -18,7 +19,7 @@ var assets embed.FS
 
 func main() {
 	root := filepath.Join(xdg.DataHome, app.ID)
-	lib, err := library.New(root)
+	lib, err := library.New(root, steam.DefaultRoots())
 	if err != nil {
 		log.Fatal(err)
 	}

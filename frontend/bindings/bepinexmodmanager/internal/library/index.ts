@@ -7,11 +7,13 @@ export {
 };
 
 export {
+    Backend,
     ModSourceType,
     Runtime
 } from "./models.js";
 
 export type {
+    Detection,
     Game,
     GameCandidate,
     Mod,

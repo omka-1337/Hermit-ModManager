@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppInfo, Game, InfoService } from "../api";
-import AddGameForm from "../components/AddGameForm";
+import GamePicker from "../components/GamePicker";
 import GameView from "../components/GameView";
 import { Button, Modal } from "../components/ui";
 
@@ -69,15 +69,15 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
       </main>
 
       {adding && (
-        <Modal title="Add game" onClose={() => setAdding(false)}>
-          <AddGameForm
+        <Modal title="Add game" wide onClose={() => setAdding(false)}>
+          <GamePicker
             onAdded={async (g) => {
               setAdding(false);
               await onGamesChanged(g.id);
             }}
-            extraActions={
-              <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
+            actions={
+              <Button variant="ghost" onClick={() => setAdding(false)}>
+                Close
               </Button>
             }
           />

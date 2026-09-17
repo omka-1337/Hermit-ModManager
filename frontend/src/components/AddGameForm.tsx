@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { Dialogs } from "@wailsio/runtime";
-import { errorMessage, Game, GameCandidate, Library, Runtime } from "../api";
-import { Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
+import { errorMessage, Game, GameCandidate, Library } from "../api";
+import { BackendBadge, Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
 
 type Props = {
   onAdded: (game: Game) => void;
-  // Rendered next to the submit button, e.g. Cancel or Skip.
+  // Rendered next to the submit button, e.g. Back or Cancel.
   extraActions?: React.ReactNode;
 };
 
+// AddGameForm adds a game from a manually picked folder.
 export default function AddGameForm({ onAdded, extraActions }: Props) {
   const [candidate, setCandidate] = useState<GameCandidate | null>(null);
   const [name, setName] = useState("");
@@ -66,10 +67,12 @@ export default function AddGameForm({ onAdded, extraActions }: Props) {
             <span className="text-sm text-zinc-400">Name</span>
             <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </label>
-          <div className="flex items-center gap-2 text-sm text-zinc-400">
-            Detected: <RuntimeBadge runtime={candidate.runtime} />
-          </div>
-          {candidate.runtime === Runtime.RuntimeUnknown && (
+          {candidate.detection.unity ? (
+            <div className="flex items-center gap-2 text-sm text-zinc-400">
+              Detected: <RuntimeBadge runtime={candidate.detection.runtime} />
+              <BackendBadge backend={candidate.detection.backend} />
+            </div>
+          ) : (
             <p className="text-sm text-amber-400">
               No Unity game found in this folder. BepInEx works only with Unity games — make sure you picked the folder
               containing the game executable.

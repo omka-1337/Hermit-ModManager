@@ -8,6 +8,16 @@ const (
 	RuntimeProton  Runtime = "proton" // Windows build run through Proton/Wine
 )
 
+// Backend is the Unity scripting backend; it decides which BepInEx build is needed
+// (BepInEx 5 supports Mono only, BepInEx 6 also IL2CPP).
+type Backend string
+
+const (
+	BackendUnknown Backend = "unknown"
+	BackendMono    Backend = "mono"
+	BackendIL2CPP  Backend = "il2cpp"
+)
+
 // Game is stored in games/<id>/game.json. It holds everything machine-specific
 // (paths, runtime); profiles must stay portable.
 type Game struct {
@@ -15,15 +25,19 @@ type Game struct {
 	Name          string  `json:"name"`
 	Path          string  `json:"path"`
 	Runtime       Runtime `json:"runtime"`
+	Backend       Backend `json:"backend"`
+	Executable    string  `json:"executable"`
+	SteamAppID    string  `json:"steamAppId,omitempty"`
 	ActiveProfile string  `json:"activeProfile"`
 }
 
-// GameCandidate is what the add-game form is prefilled with after picking a folder.
+// GameCandidate is a game that can be added: found in Steam or picked manually.
 type GameCandidate struct {
-	Path         string  `json:"path"`
-	Name         string  `json:"name"`
-	Runtime      Runtime `json:"runtime"`
-	AlreadyAdded bool    `json:"alreadyAdded"`
+	Path         string    `json:"path"`
+	Name         string    `json:"name"`
+	SteamAppID   string    `json:"steamAppId,omitempty"`
+	Detection    Detection `json:"detection"`
+	AlreadyAdded bool      `json:"alreadyAdded"`
 }
 
 const ProfileSchemaVersion = 1

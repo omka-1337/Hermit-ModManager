@@ -21,6 +21,13 @@ export function CreateProfile(gameID: string, name: string): $CancellablePromise
     return $Call.ByID(1729703513, gameID, name);
 }
 
+/**
+ * DiscoverGames lists BepInEx-compatible (Unity) games installed via Steam.
+ */
+export function DiscoverGames(): $CancellablePromise<$models.GameCandidate[] | null> {
+    return $Call.ByID(2648490954);
+}
+
 export function GetGame(id: string): $CancellablePromise<$models.Game> {
     return $Call.ByID(2697987102, id);
 }
@@ -30,7 +37,7 @@ export function GetProfile(gameID: string, profileID: string): $CancellablePromi
 }
 
 /**
- * InspectGamePath suggests a name and runtime for a game folder without adding it.
+ * InspectGamePath describes a manually picked folder without adding it.
  */
 export function InspectGamePath(path: string): $CancellablePromise<$models.GameCandidate> {
     return $Call.ByID(1059388653, path);

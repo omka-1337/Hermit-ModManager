@@ -10,7 +10,7 @@ import (
 
 func newTestLibrary(t *testing.T) *Library {
 	t.Helper()
-	lib, err := New(filepath.Join(t.TempDir(), "lib"))
+	lib, err := New(filepath.Join(t.TempDir(), "lib"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func fakeGame(t *testing.T, files ...string) string {
 
 func TestAddGameCreatesDefaultProfile(t *testing.T) {
 	lib := newTestLibrary(t)
-	path := fakeGame(t, "Valheim_Data/", "Valheim.exe")
+	path := fakeGame(t, "Valheim_Data/", "Valheim.exe", "UnityPlayer.dll")
 
 	g, err := lib.AddGame("Valheim", path)
 	if err != nil {
@@ -61,7 +61,7 @@ func TestAddGameCreatesDefaultProfile(t *testing.T) {
 	}
 
 	entries, _ := os.ReadDir(path)
-	if len(entries) != 2 {
+	if len(entries) != 3 {
 		t.Errorf("game directory was modified: %v", entries)
 	}
 }
@@ -160,13 +160,13 @@ func TestRejectsPathTraversalIDs(t *testing.T) {
 
 func TestInspectGamePath(t *testing.T) {
 	lib := newTestLibrary(t)
-	path := fakeGame(t, "Lethal Company_Data/", "Lethal Company.exe")
+	path := fakeGame(t, "Lethal Company_Data/Managed/", "Lethal Company.exe", "UnityCrashHandler64.exe")
 
 	c, err := lib.InspectGamePath(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Name != "Lethal Company" || c.Runtime != RuntimeProton || c.AlreadyAdded {
+	if c.Name != "Lethal Company" || !c.Detection.Unity || c.AlreadyAdded {
 		t.Fatalf("candidate: %+v", c)
 	}
 
@@ -178,20 +178,92 @@ func TestInspectGamePath(t *testing.T) {
 	}
 
 	other := fakeGame(t)
-	if c, _ = lib.InspectGamePath(other); c.Name != filepath.Base(other) {
-		t.Errorf("fallback name: %q", c.Name)
+	if c, _ = lib.InspectGamePath(other); c.Name != filepath.Base(other) || c.Detection.Unity {
+		t.Errorf("non-game folder: %+v", c)
 	}
 }
 
-func TestDetectRuntime(t *testing.T) {
-	cases := map[Runtime][]string{
-		RuntimeProton:  {"Game_Data/", "Game.exe"},
-		RuntimeNative:  {"Game_Data/", "Game.x86_64"},
-		RuntimeUnknown: {"readme.txt"},
+func TestDetectGame(t *testing.T) {
+	cases := []struct {
+		files []string
+		want  Detection
+	}{
+		{
+			[]string{"Game_Data/Managed/", "Game.exe", "UnityPlayer.dll", "UnityCrashHandler64.exe"},
+			Detection{Unity: true, Runtime: RuntimeProton, Backend: BackendMono, Executable: "Game.exe"},
+		},
+		{
+			[]string{"Game_Data/il2cpp_data/", "Game.exe", "GameAssembly.dll", "UnityPlayer.dll"},
+			Detection{Unity: true, Runtime: RuntimeProton, Backend: BackendIL2CPP, Executable: "Game.exe"},
+		},
+		{
+			[]string{"Game_Data/Managed/", "Game.x86_64", "UnityPlayer.so"},
+			Detection{Unity: true, Runtime: RuntimeNative, Backend: BackendMono, Executable: "Game.x86_64"},
+		},
+		{
+			// Old Unity without UnityPlayer.dll.
+			[]string{"Old_Data/Managed/", "Old.exe"},
+			Detection{Unity: true, Runtime: RuntimeProton, Backend: BackendMono, Executable: "Old.exe"},
+		},
+		{
+			// A _Data folder alone is not enough.
+			[]string{"Other_Data/", "Other.exe"},
+			Detection{Runtime: RuntimeUnknown, Backend: BackendUnknown},
+		},
+		{
+			[]string{"readme.txt"},
+			Detection{Runtime: RuntimeUnknown, Backend: BackendUnknown},
+		},
 	}
-	for want, files := range cases {
-		if got := DetectRuntime(fakeGame(t, files...)); got != want {
-			t.Errorf("%v: got %q, want %q", files, got, want)
+	for _, tc := range cases {
+		if got := DetectGame(fakeGame(t, tc.files...)); got != tc.want {
+			t.Errorf("%v:\n got  %+v\n want %+v", tc.files, got, tc.want)
 		}
+	}
+}
+
+func TestDiscoverGamesFromSteam(t *testing.T) {
+	steamRoot := t.TempDir()
+	apps := filepath.Join(steamRoot, "steamapps")
+	writeFile := func(rel, content string) {
+		p := filepath.Join(apps, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest := func(id, name, dir string) string {
+		return `"AppState" { "appid" "` + id + `" "name" "` + name + `" "installdir" "` + dir + `" }`
+	}
+	writeFile("appmanifest_1966720.acf", manifest("1966720", "Lethal Company", "Lethal Company"))
+	writeFile("common/Lethal Company/Lethal Company.exe", "")
+	writeFile("common/Lethal Company/UnityPlayer.dll", "")
+	writeFile("common/Lethal Company/Lethal Company_Data/Managed/Assembly-CSharp.dll", "")
+	writeFile("appmanifest_1070560.acf", manifest("1070560", "Steam Linux Runtime", "SteamLinuxRuntime"))
+	writeFile("common/SteamLinuxRuntime/run.sh", "")
+
+	lib, err := New(filepath.Join(t.TempDir(), "lib"), []string{steamRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, err := lib.DiscoverGames()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 || found[0].SteamAppID != "1966720" || found[0].Detection.Backend != BackendMono {
+		t.Fatalf("discovered: %+v", found)
+	}
+
+	g, err := lib.AddGame(found[0].Name, found[0].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.SteamAppID != "1966720" || g.Runtime != RuntimeProton || g.Executable != "Lethal Company.exe" {
+		t.Fatalf("added: %+v", g)
+	}
+	if found, _ = lib.DiscoverGames(); !found[0].AlreadyAdded {
+		t.Error("expected AlreadyAdded after adding")
 	}
 }

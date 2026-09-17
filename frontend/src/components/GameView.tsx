@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { confirmDanger, errorMessage, Game, Library, Profile } from "../api";
 import EditableName from "./EditableName";
-import { Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
+import { BackendBadge, Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
 
 type Props = {
   game: Game;
@@ -77,6 +77,7 @@ export default function GameView({ game, onChanged, onRemoved }: Props) {
           />
           <div className="flex items-center gap-2 text-sm text-zinc-500">
             <RuntimeBadge runtime={game.runtime} />
+            <BackendBadge backend={game.backend} />
             <span className="truncate select-text">{game.path}</span>
           </div>
         </div>
