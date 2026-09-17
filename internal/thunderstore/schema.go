@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -28,7 +29,10 @@ type ModloaderPackage struct {
 }
 
 type EcosystemGame struct {
-	Label         string         `json:"label"`
+	Label string `json:"label"`
+	Meta  struct {
+		DisplayName string `json:"displayName"`
+	} `json:"meta"`
 	Distributions []Distribution `json:"distributions"`
 	R2modman      []GameSettings `json:"r2modman"`
 	Thunderstore  *struct {
@@ -42,6 +46,9 @@ type Distribution struct {
 }
 
 type GameSettings struct {
+	// PackageIndex is the listing URL of the game's community, e.g.
+	// https://thunderstore.io/c/valheim/api/v1/package-listing-index/.
+	PackageIndex           string         `json:"packageIndex"`
 	ExeNames               []string       `json:"exeNames"`
 	DataFolderName         string         `json:"dataFolderName"`
 	PackageLoader          string         `json:"packageLoader"`
@@ -144,14 +151,11 @@ func (e *Ecosystem) FindGame(steamAppID, executable string) (Community, GameSett
 	}
 	var byExe *match
 	for label, g := range e.Games {
-		if g.Thunderstore == nil {
-			continue
-		}
 		for _, s := range g.R2modman {
 			if s.PackageLoader != "bepinex" {
 				continue
 			}
-			m := match{Community{ID: label, Name: g.Thunderstore.DisplayName}, s}
+			m := match{communityOf(label, g, s), s}
 			if steamAppID != "" && (hasSteamID(s.Distributions, steamAppID) || hasSteamID(g.Distributions, steamAppID)) {
 				return m.community, m.settings, true
 			}
@@ -169,6 +173,25 @@ func (e *Ecosystem) FindGame(steamAppID, executable string) (Community, GameSett
 	}
 	return Community{}, GameSettings{}, false
 }
+
+// communityOf names the Thunderstore community of a game. Older games in the
+// schema have no "thunderstore" section, so like r2modman the community id is
+// taken from the package index URL.
+func communityOf(label string, g EcosystemGame, s GameSettings) Community {
+	c := Community{ID: label, Name: g.Meta.DisplayName}
+	if g.Thunderstore != nil && g.Thunderstore.DisplayName != "" {
+		c.Name = g.Thunderstore.DisplayName
+	}
+	if m := packageIndexCommunity.FindStringSubmatch(s.PackageIndex); m != nil {
+		c.ID = m[1]
+	}
+	if c.Name == "" {
+		c.Name = label
+	}
+	return c
+}
+
+var packageIndexCommunity = regexp.MustCompile(`/c/([^/]+)/`)
 
 func hasSteamID(ds []Distribution, id string) bool {
 	for _, d := range ds {

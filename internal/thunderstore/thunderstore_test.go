@@ -22,6 +22,14 @@ const schemaJSON = `{
         "distributions": [{"platform": "steam", "identifier": "1966720"}]}],
       "thunderstore": {"displayName": "Lethal Company"}
     },
+    "valheim": {
+      "label": "valheim",
+      "meta": {"displayName": "Valheim"},
+      "distributions": [{"platform": "steam", "identifier": "892970"}],
+      "r2modman": [{"exeNames": ["valheim.x86_64"], "packageLoader": "bepinex",
+        "packageIndex": "https://thunderstore.io/c/valheim/api/v1/package-listing-index/",
+        "distributions": [{"platform": "steam", "identifier": "892970"}]}]
+    },
     "melon-game": {
       "label": "melon-game",
       "distributions": [{"platform": "steam", "identifier": "42"}],
@@ -78,6 +86,9 @@ func TestSchemaAndFindCommunity(t *testing.T) {
 	}
 	if c, ok := schema.FindCommunity("", "lethal company.exe"); !ok || c.ID != "lethal-company" {
 		t.Errorf("by exe: %+v %v", c, ok)
+	}
+	if c, ok := schema.FindCommunity("892970", ""); !ok || c.ID != "valheim" || c.Name != "Valheim" {
+		t.Errorf("game without thunderstore section: %+v %v", c, ok)
 	}
 	if _, ok := schema.FindCommunity("42", "Melon.exe"); ok {
 		t.Error("non-BepInEx community must not match")
