@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage, Game, Library, SettingsStore } from "./api";
+import WindowFrame from "./components/WindowFrame";
 import Main from "./screens/Main";
 import Setup from "./screens/Setup";
 
@@ -36,18 +37,19 @@ function App() {
     }
   };
 
+  let screen: React.ReactNode = null;
   switch (state.status) {
-    case "loading":
-      return null;
     case "error":
-      return <div className="p-8 text-red-400">Failed to load: {state.message}</div>;
+      screen = <div className="p-8 text-red-400">Failed to load: {state.message}</div>;
+      break;
     case "ready":
-      return state.setup ? (
+      screen = state.setup ? (
         <Setup onFinish={finishSetup} />
       ) : (
         <Main games={games} selectedId={selectedId} onSelect={setSelectedId} onGamesChanged={reloadGames} />
       );
   }
+  return <WindowFrame>{screen}</WindowFrame>;
 }
 
 export default App;

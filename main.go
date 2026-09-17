@@ -102,7 +102,9 @@ func main() {
 	})
 
 	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            app.Name,
+		Title: app.Name,
+		// The frontend draws its own title bar and window controls.
+		Frameless:        true,
 		Width:            1200,
 		Height:           760,
 		MinWidth:         900,
