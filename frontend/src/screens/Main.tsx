@@ -114,7 +114,7 @@ export default function Main({ games, selectedId, onSelect, onGamesChanged }: Pr
       </main>
 
       {adding && (
-        <Modal title="Add game" wide onClose={() => setAdding(false)}>
+        <Modal title="Add game" size="lg" onClose={() => setAdding(false)}>
           <GamePicker
             onAdded={async (g) => {
               setAdding(false);

@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Browser } from "@wailsio/runtime";
 import { BrowseService, errorMessage, isCancelled, PackageDetail } from "../../api";
 import { formatAgo, formatBytes, formatCount } from "../../format";
 import Markdown from "../Markdown";
 import { Button, ErrorText, NsfwBadge } from "../ui";
-import InstallButton from "./InstallButton";
 import PackageIcon from "./PackageIcon";
 
 type Props = {
@@ -13,9 +12,10 @@ type Props = {
   name: string;
   onClose: () => void;
   onOpenPackage: (namespace: string, name: string) => void;
+  renderActions: (pkg: PackageDetail) => ReactNode;
 };
 
-export default function PackageDetails({ community, namespace, name, onClose, onOpenPackage }: Props) {
+export default function PackageDetails({ community, namespace, name, onClose, onOpenPackage, renderActions }: Props) {
   const [pkg, setPkg] = useState<PackageDetail | null>(null);
   const [readme, setReadme] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -69,12 +69,7 @@ export default function PackageDetails({ community, namespace, name, onClose, on
 
             <p className="text-sm text-zinc-300">{pkg.description}</p>
 
-            <InstallButton
-              namespace={pkg.namespace}
-              name={pkg.name}
-              latestVersion={pkg.latest_version_number}
-              modpack={(pkg.categories ?? []).some((c) => c.slug === "modpacks")}
-            />
+            {renderActions(pkg)}
 
             <div className="-mt-2 flex items-center gap-2">
               <Button variant="ghost" onClick={() => Browser.OpenURL(pkg.page_url)}>

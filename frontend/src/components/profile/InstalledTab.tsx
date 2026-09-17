@@ -2,7 +2,7 @@ import { useState } from "react";
 import { confirmDanger, errorMessage, Mod } from "../../api";
 import { Button, ErrorText, Toggle } from "../ui";
 import LaunchReport, { issueText } from "./LaunchReport";
-import PackageIcon from "./PackageIcon";
+import PackageIcon from "../browse/PackageIcon";
 import { dependantsOf, dependencyLabel, thunderstoreIconURL, useProfile } from "./ProfileContext";
 
 export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { confirmDanger, errorMessage, Game, Library, Profile } from "../api";
 import { packageLabel } from "../format";
+import CreateProfileModal from "./CreateProfileModal";
 import EditableName from "./EditableName";
 import GameIcon from "./GameIcon";
 import { LaunchSetup, PlayButton } from "./launch";
 import { ImportModal } from "./share";
-import { BackendBadge, Button, ErrorText, inputClass, RuntimeBadge } from "./ui";
+import { BackendBadge, Button, ErrorText, RuntimeBadge } from "./ui";
 
 type Props = {
   game: Game;
@@ -16,9 +17,9 @@ type Props = {
 
 export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: Props) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [newProfile, setNewProfile] = useState("");
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const run = async (action: () => Promise<void>) => {
     setError("");
@@ -51,14 +52,6 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
       onRemoved();
     });
 
-  const createProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    run(async () => {
-      await Library.CreateProfile(game.id, newProfile.trim());
-      setNewProfile("");
-      await loadProfiles();
-    });
-  };
 
   const removeProfile = (p: Profile) =>
     run(async () => {
@@ -149,21 +142,27 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
             );
           })}
         </ul>
-        <form onSubmit={createProfile} className="flex gap-2">
-          <input
-            className={inputClass}
-            placeholder="New profile name"
-            value={newProfile}
-            onChange={(e) => setNewProfile(e.target.value)}
-          />
-          <Button type="submit" disabled={!newProfile.trim()}>
-            Create profile
+        <div className="flex gap-2">
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            Create a new profile
           </Button>
-          <Button type="button" variant="ghost" onClick={() => setImporting(true)}>
+          <Button variant="ghost" onClick={() => setImporting(true)}>
             Import…
           </Button>
-        </form>
+        </div>
       </section>
+
+      {creating && (
+        <CreateProfileModal
+          game={game}
+          onClose={() => setCreating(false)}
+          onCreated={(profileId, open) => {
+            setCreating(false);
+            if (open) onOpenProfile(profileId);
+            else loadProfiles();
+          }}
+        />
+      )}
 
       {importing && (
         <ImportModal
