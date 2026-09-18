@@ -7,29 +7,44 @@ const buttons = {
   b: 1,
   lb: 4,
   rb: 5,
+  up: 12,
+  down: 13,
   left: 14,
   right: 15,
 } as const;
 
-// Keys that stand in for the buttons while testing on a desktop.
+// Keys that stand in for the buttons: the arrows are the d-pad, so the same
+// navigation works from a keyboard (and can be tested without a controller).
 const keys: Record<string, keyof Handlers> = {
+  ArrowUp: "onUp",
+  ArrowDown: "onDown",
+  ArrowLeft: "onLeft",
+  ArrowRight: "onRight",
+  Enter: "onAccept",
+  Escape: "onBack",
+  Backspace: "onBack",
   BracketLeft: "onPrev",
   BracketRight: "onNext",
   PageUp: "onPrev",
   PageDown: "onNext",
-  Escape: "onBack",
 };
 
 export type Handlers = {
+  // onPrev and onNext are the shoulder buttons: they switch pages wherever the
+  // user is.
   onPrev?: () => void;
   onNext?: () => void;
+  // The rest is the d-pad, which moves within the current page.
+  onUp?: () => void;
+  onDown?: () => void;
+  onLeft?: () => void;
+  onRight?: () => void;
   onAccept?: () => void;
   onBack?: () => void;
 };
 
-// useGamepad calls the handlers when a controller button is pressed: LB/RB and
-// the D-pad left/right switch, A accepts, B goes back. Keyboard equivalents
-// exist so the same navigation can be used (and tested) without a controller.
+// useGamepad calls the handlers when a controller button is pressed: LB/RB
+// switch, the d-pad moves, A accepts and B goes back.
 export function useGamepad(handlers: Handlers, enabled = true) {
   const latest = useRef(handlers);
   latest.current = handlers;
@@ -62,8 +77,12 @@ export function useGamepad(handlers: Handlers, enabled = true) {
         pressed.set(index, down);
         return down && !was;
       };
-      if (edge(buttons.lb) || edge(buttons.left)) latest.current.onPrev?.();
-      if (edge(buttons.rb) || edge(buttons.right)) latest.current.onNext?.();
+      if (edge(buttons.lb)) latest.current.onPrev?.();
+      if (edge(buttons.rb)) latest.current.onNext?.();
+      if (edge(buttons.up)) latest.current.onUp?.();
+      if (edge(buttons.down)) latest.current.onDown?.();
+      if (edge(buttons.left)) latest.current.onLeft?.();
+      if (edge(buttons.right)) latest.current.onRight?.();
       if (edge(buttons.a)) latest.current.onAccept?.();
       if (edge(buttons.b)) latest.current.onBack?.();
     };

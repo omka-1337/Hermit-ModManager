@@ -2,11 +2,16 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Game } from "../api";
 import GameIcon from "../components/GameIcon";
 import { useGamepad } from "../gamepad";
+import { clickFocused, Direction, focusFirst, moveFocus } from "../focus";
 import { useModalOpen } from "../components/ui";
 import { GearIcon, PlusIcon, ShellProps } from "./shell";
 
 // Entry is a stop in the game bar: a game, or one of the two actions after them.
 type Entry = { kind: "game"; game: Game } | { kind: "add" } | { kind: "settings" };
+
+// Zone is where the buttons act: on the bar of games, or inside the page below
+// it. The bar shrinks out of the way while the page has the focus.
+type Zone = "bar" | "page";
 
 // ConsoleShell is the Steam Deck chrome: games in a row along the top, one page
 // per entry, switched with the shoulder buttons like Steam's Big Picture.
@@ -33,11 +38,51 @@ export default function ConsoleShell({
         ? entries.length - 2
         : entries.findIndex((e) => e.kind === "game" && e.game.id === selectedId);
   const [index, setIndex] = useState(Math.max(current, 0));
+  const [zone, setZone] = useState<Zone>("bar");
+  const main = useRef<HTMLElement>(null);
+  // Set once the user moves the focus themselves, so a page that is still
+  // loading stops pulling it back.
+  const moved = useRef(false);
 
   // Follow page changes made elsewhere, e.g. right after a game is added.
   useEffect(() => {
     if (current >= 0) setIndex(current);
   }, [current]);
+
+  // Switching pages while the focus is inside one lands on the new page's own
+  // control instead of nowhere. Pages load their contents after they mount, so
+  // the aim is corrected as the real controls (a game's profiles, say) arrive.
+  useEffect(() => {
+    if (zone !== "page") return;
+    if (!focusFirst(main.current)) {
+      setZone("bar");
+      return;
+    }
+    moved.current = false;
+    const observer = new MutationObserver(() => {
+      if (moved.current) observer.disconnect();
+      else focusFirst(main.current);
+    });
+    if (main.current) observer.observe(main.current, { childList: true, subtree: true });
+    const stop = setTimeout(() => observer.disconnect(), 2000);
+    return () => {
+      observer.disconnect();
+      clearTimeout(stop);
+    };
+  }, [zone, page, selectedId]);
+
+  const enterPage = () => {
+    if (focusFirst(main.current)) setZone("page");
+  };
+
+  const move = (dir: Direction) => {
+    if (moveFocus(dir, main.current)) moved.current = true;
+  };
+
+  const backToBar = () => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    setZone("bar");
+  };
 
   // Every entry is a page, so moving the highlight switches the view at once.
   const goto = (to: number) => {
@@ -53,18 +98,31 @@ export default function ConsoleShell({
   const modalOpen = useModalOpen();
   useGamepad(
     {
+      // The shoulders switch games from anywhere, the d-pad stays in its zone.
       onPrev: () => goto(index - 1),
       onNext: () => goto(index + 1),
-      onBack,
+      onLeft: () => (zone === "bar" ? goto(index - 1) : move("left")),
+      onRight: () => (zone === "bar" ? goto(index + 1) : move("right")),
+      onDown: () => (zone === "bar" ? enterPage() : move("down")),
+      // Up at the top of a page returns to the games.
+      onUp: () => {
+        if (zone !== "page") return;
+        if (moveFocus("up", main.current)) moved.current = true;
+        else backToBar();
+      },
+      onAccept: () => (zone === "bar" ? enterPage() : clickFocused(main.current)),
+      onBack: () => (zone === "page" ? backToBar() : onBack()),
     },
     !modalOpen,
   );
 
   return (
     <div className="flex h-full flex-col">
-      <GameBar entries={entries} index={index} onPick={goto} />
-      <main className="min-h-0 flex-1 overflow-auto">{children}</main>
-      <HintBar canGoBack={canGoBack} />
+      <GameBar entries={entries} index={index} compact={zone === "page"} onPick={goto} />
+      <main ref={main} className="min-h-0 flex-1 overflow-auto">
+        {children}
+      </main>
+      <HintBar zone={zone} canGoBack={canGoBack} />
     </div>
   );
 }
@@ -72,11 +130,13 @@ export default function ConsoleShell({
 type GameBarProps = {
   entries: Entry[];
   index: number;
+  // compact shrinks the bar to icons once the page below has the focus.
+  compact: boolean;
   onPick: (index: number) => void;
 };
 
 // GameBar keeps the selected entry in the middle: the strip slides under it.
-function GameBar({ entries, index, onPick }: GameBarProps) {
+function GameBar({ entries, index, compact, onPick }: GameBarProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const strip = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState(0);
@@ -93,12 +153,17 @@ function GameBar({ entries, index, onPick }: GameBarProps) {
     const observer = new ResizeObserver(center);
     if (viewport.current) observer.observe(viewport.current);
     return () => observer.disconnect();
-  }, [index, entries.length]);
+  }, [index, entries.length, compact]);
 
   return (
-    <header className="flex items-center gap-3 border-b border-zinc-800 bg-zinc-900 px-3 py-2">
+    <header
+      className={`flex items-center gap-3 border-b border-zinc-800 bg-zinc-900 px-3 transition-all duration-200 ${
+        compact ? "py-1" : "py-2"
+      }`}
+    >
       <ShoulderHint label="LB" />
-      <div ref={viewport} className="relative min-w-0 flex-1 overflow-hidden">
+      {/* The vertical padding keeps the selection ring from being clipped. */}
+      <div ref={viewport} className="relative -my-1 min-w-0 flex-1 overflow-hidden py-1">
         <div
           ref={strip}
           className="flex gap-2 transition-transform duration-200 ease-out"
@@ -106,29 +171,36 @@ function GameBar({ entries, index, onPick }: GameBarProps) {
         >
           {entries.map((entry, i) => {
             const active = i === index;
-            const tile = `flex h-[5rem] w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-2 text-xs transition ${
-              active ? "bg-zinc-800 text-white ring-2 ring-indigo-500" : "text-zinc-400 opacity-70"
-            }`;
+            const tile = `flex shrink-0 flex-col items-center justify-center gap-1 rounded-xl text-xs transition-all duration-200 ${
+              compact ? "h-11 w-11 px-0" : "h-[5rem] w-28 px-2"
+            } ${active ? "bg-zinc-800 text-white ring-2 ring-indigo-500" : "text-zinc-400 opacity-70"}`;
             if (entry.kind === "game") {
               return (
-                <button key={entry.game.id} onClick={() => onPick(i)} className={tile}>
-                  <GameIcon name={entry.game.name} steamAppId={entry.game.steamAppId} size={36} />
-                  <span className="line-clamp-2 w-full text-center leading-tight break-words">{entry.game.name}</span>
+                <button key={entry.game.id} onClick={() => onPick(i)} className={tile} title={entry.game.name}>
+                  <GameIcon name={entry.game.name} steamAppId={entry.game.steamAppId} size={compact ? 28 : 36} />
+                  {!compact && (
+                    <span className="line-clamp-2 w-full text-center leading-tight break-words">{entry.game.name}</span>
+                  )}
                 </button>
               );
             }
             if (entry.kind === "add") {
               return (
-                <button key="add" onClick={() => onPick(i)} className={`${tile} border border-dashed border-zinc-700`}>
+                <button
+                  key="add"
+                  onClick={() => onPick(i)}
+                  title="Add game"
+                  className={`${tile} border border-dashed border-zinc-700`}
+                >
                   <PlusIcon />
-                  Add game
+                  {!compact && "Add game"}
                 </button>
               );
             }
             return (
-              <button key="settings" onClick={() => onPick(i)} className={tile}>
+              <button key="settings" onClick={() => onPick(i)} className={tile} title="Settings">
                 <GearIcon />
-                Settings
+                {!compact && "Settings"}
               </button>
             );
           })}
@@ -147,8 +219,11 @@ function ShoulderHint({ label }: { label: string }) {
   );
 }
 
-function HintBar({ canGoBack }: { canGoBack: boolean }) {
-  const hints = ["LB / RB — switch", canGoBack ? "B — back" : null].filter(Boolean);
+function HintBar({ zone, canGoBack }: { zone: Zone; canGoBack: boolean }) {
+  const hints =
+    zone === "bar"
+      ? ["LB / RB — switch", "A / ↓ — open", canGoBack ? "B — back" : null]
+      : ["D-pad — move", "A — select", "B — back to games", "LB / RB — switch"];
   return (
     <footer className="flex gap-4 border-t border-zinc-800 bg-zinc-900 px-4 py-1.5 text-xs text-zinc-500">
       {hints.map((hint) => (

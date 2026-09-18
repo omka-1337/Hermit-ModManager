@@ -124,7 +124,7 @@ func main() {
 		Height:           760,
 		MinWidth:         900,
 		MinHeight:        560,
-		BackgroundColour: application.NewRGB(15, 17, 23),
+		BackgroundColour: application.NewRGB(9, 9, 11), // same as the page background
 		URL:              "/",
 	}
 	if deckLayout(stored.UIMode) {

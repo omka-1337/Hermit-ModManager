@@ -32,6 +32,13 @@ body,
   touch-action: manipulation;
 }
 
+/* Controller navigation moves focus programmatically, which does not always
+   count as :focus-visible, so the deck layout outlines plain :focus too. */
+:root[data-layout="deck"] main :focus {
+  outline: 3px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
 /* A scrolled list should not drag the page behind it once it hits the end. */
 .overflow-y-auto,
 .overflow-auto {
