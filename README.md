@@ -58,3 +58,6 @@ License as published by the Free Software Foundation, either version 3 of the Li
 version. See [LICENSE](LICENSE) for the full text.
 
 Copyright (C) 2026 Omka
+
+Dependencies and the libraries bundled into the AppImage keep their own licenses; they are listed in
+[THIRD-PARTY.md](THIRD-PARTY.md), regenerated with `wails3 task third-party` after dependency changes.

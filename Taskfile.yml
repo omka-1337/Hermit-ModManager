@@ -32,6 +32,11 @@ tasks:
     cmds:
       - task: "{{.GOOS}}:run"
 
+  third-party:
+    summary: Regenerates THIRD-PARTY.md from the shipped dependencies
+    cmds:
+      - python3 build/licenses/third-party.py
+
   dev:
     summary: Runs the application in development mode
     cmds:
