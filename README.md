@@ -73,19 +73,8 @@ launch wrapper runs the game through the shell.
 
 ### Games
 
-Any game on Thunderstore that uses BepInEx should work, and the games below are the ones actually exercised so far.
-Mods install into the profile and reach the game through symlinks, so nothing is written into the game folder.
-
-| Game | Runtime | Status |
-| --- | --- | --- |
-| Lethal Company | Proton | Tested — mods installed, enabled and launched through Steam |
-| PEAK | Proton | Tested — including installing a modpack as its own profile |
-| Content Warning, R.E.P.O., Valheim | Proton | Browsing and installing tested, launching not |
-| Native Linux games (`run_bepinex.sh`) | native | Implemented, never tested on a real game |
-| IL2CPP games (BepInEx 6) | either | Detected and installed, never tested on a real game |
-
-If a game of yours works, or does not, an issue with the game name and what happened is the most useful thing you can
-send.
+Any game on Thunderstore that uses BepInEx should work. Which ones have actually been tried, and how far, is kept in
+[GAMES.md](GAMES.md) — reports of games that work or do not are welcome there.
 
 ## Requirements (Arch Linux)
 
