@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import {
   confirmDanger,
@@ -35,7 +35,13 @@ type ProfileState = {
   // updates maps ids of outdated mods to their latest version.
   updates: Map<string, string>;
   checkingUpdates: boolean;
+  // checked is set once a check has finished, so "up to date" means it.
+  checked: boolean;
   checkUpdates: () => Promise<void>;
+  // updating is the mod being updated right now, updated the ones already
+  // brought up to date in this session.
+  updating: string | null;
+  updated: Set<string>;
   update: (modId: string) => Promise<void>;
   updateAll: () => Promise<UpdateResult | null>;
 };
@@ -64,12 +70,21 @@ export function ProfileProvider({ game, profile, onProfileChange, onOpenProfile,
   // latest holds the newest known version of each mod, from the last check.
   const [latest, setLatest] = useState<Map<string, string>>(new Map());
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [updatingOne, setUpdatingOne] = useState<string | null>(null);
+  const [updated, setUpdated] = useState<Set<string>>(new Set());
+
+  const markUpdated = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setUpdated((done) => new Set([...done, ...ids]));
+  }, []);
 
   const checkUpdates = useCallback(async () => {
     setCheckingUpdates(true);
     try {
       const found = (await InstallService.CheckUpdates(game.id, profile.id)) ?? [];
       setLatest(new Map(found.map((u) => [u.modId, u.latest])));
+      setChecked(true);
     } finally {
       setCheckingUpdates(false);
     }
@@ -108,6 +123,19 @@ export function ProfileProvider({ game, profile, onProfileChange, onOpenProfile,
       }),
     [game.id, profile.id],
   );
+
+  const updatingAll = useRef<string | null>(null);
+  useEffect(() => {
+    if (busy !== "update-all") {
+      updatingAll.current = null;
+      return;
+    }
+    const target = progress?.target ?? null;
+    if (!target) return;
+    // The previous target is finished once another package starts.
+    if (updatingAll.current && updatingAll.current !== target) markUpdated([updatingAll.current]);
+    updatingAll.current = target;
+  }, [busy, progress, markUpdated]);
 
   const run = useCallback(
     async (id: string, action: () => Promise<Profile>) => {
@@ -172,14 +200,29 @@ export function ProfileProvider({ game, profile, onProfileChange, onOpenProfile,
         run(modId, () => InstallService.SetModEnabled(game.id, profile.id, modId, enabled)),
       updates,
       checkingUpdates,
+      checked,
       checkUpdates,
-      update: (modId) => run(modId, () => InstallService.UpdateMod(game.id, profile.id, modId)),
+      updating: busy === "update-all" ? (progress?.target ?? null) : updatingOne,
+      updated,
+      update: async (modId) => {
+        setUpdatingOne(modId);
+        try {
+          await run(modId, () => InstallService.UpdateMod(game.id, profile.id, modId));
+          markUpdated([modId]);
+        } finally {
+          setUpdatingOne(null);
+        }
+      },
       updateAll: async () => {
         let result: UpdateResult | null = null;
+        let done: string[] = [];
         await run("update-all", async () => {
-          result = await InstallService.UpdateAll(game.id, profile.id);
-          return result.profile;
+          const outcome = await InstallService.UpdateAll(game.id, profile.id);
+          result = outcome;
+          done = outcome.updated ?? [];
+          return outcome.profile;
         });
+        markUpdated(done);
         return result;
       },
     }),
@@ -193,7 +236,11 @@ export function ProfileProvider({ game, profile, onProfileChange, onOpenProfile,
       install,
       updates,
       checkingUpdates,
+      checked,
       checkUpdates,
+      updatingOne,
+      updated,
+      markUpdated,
       onOpenProfile,
       onProfileChange,
     ],

@@ -2,12 +2,21 @@ import { useEffect, useState } from "react";
 import { IconService } from "../api";
 
 // Icons are small data URLs read from Steam's cache; fetch each app only once.
+// Resolved ones are kept separately so a remount can paint the icon on its
+// first frame: going through the promise again would show the placeholder
+// tile for a frame, which reads as a flicker when switching games.
 const icons = new Map<string, Promise<string>>();
+const loaded = new Map<string, string>();
 
 function steamIcon(appId: string): Promise<string> {
   let icon = icons.get(appId);
   if (!icon) {
-    icon = IconService.GetSteamIcon(appId).catch(() => "");
+    icon = IconService.GetSteamIcon(appId)
+      .catch(() => "")
+      .then((src) => {
+        loaded.set(appId, src);
+        return src;
+      });
     icons.set(appId, icon);
   }
   return icon;
@@ -24,12 +33,21 @@ type Props = {
 
 // GameIcon shows a game's Steam icon, or a colored tile with its initial.
 export default function GameIcon({ name, steamAppId, size, className = "" }: Props) {
-  const [src, setSrc] = useState("");
+  const [src, setSrc] = useState(() => (steamAppId ? (loaded.get(steamAppId) ?? "") : ""));
 
   useEffect(() => {
+    if (!steamAppId) {
+      setSrc("");
+      return;
+    }
+    const known = loaded.get(steamAppId);
+    if (known !== undefined) {
+      setSrc(known);
+      return;
+    }
     let active = true;
     setSrc("");
-    if (steamAppId) steamIcon(steamAppId).then((s) => active && setSrc(s));
+    steamIcon(steamAppId).then((s) => active && setSrc(s));
     return () => {
       active = false;
     };

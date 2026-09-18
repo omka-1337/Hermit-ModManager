@@ -1,14 +1,28 @@
 import { useState } from "react";
 import { confirmDanger, errorMessage, Mod } from "../../api";
-import { Button, ErrorText, Toggle } from "../ui";
+import { Button, ErrorText, Spinner, Toggle } from "../ui";
 import AddModModal from "./AddModModal";
 import LaunchReport, { issueText } from "./LaunchReport";
 import PackageIcon from "../browse/PackageIcon";
 import { dependantsOf, dependencyLabel, thunderstoreIconURL, useProfile } from "./ProfileContext";
 
 export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
-  const { profile, installed, busy, report, uninstall, setEnabled, updates, checkingUpdates, checkUpdates, update, updateAll } =
-    useProfile();
+  const {
+    profile,
+    installed,
+    busy,
+    report,
+    uninstall,
+    setEnabled,
+    updates,
+    checkingUpdates,
+    checked,
+    checkUpdates,
+    updating,
+    updated,
+    update,
+    updateAll,
+  } = useProfile();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
   const mods = profile.mods ?? [];
@@ -55,13 +69,19 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
       {addModal}
       <ErrorText>{error}</ErrorText>
       <div className="mb-3 flex items-center justify-between gap-3 text-sm">
-        <span className={updates.size ? "text-amber-400" : "text-zinc-500"}>
-          {checkingUpdates
-            ? "Checking for updates…"
-            : updates.size
-              ? `${updates.size} ${updates.size === 1 ? "update" : "updates"} available`
-              : "All mods are up to date"}
-        </span>
+        {checkingUpdates ? (
+          <span className="flex items-center gap-2 text-zinc-300">
+            <Spinner /> Checking for updates…
+          </span>
+        ) : updates.size ? (
+          <span className="text-amber-400">
+            {updates.size} {updates.size === 1 ? "update" : "updates"} available
+          </span>
+        ) : (
+          <span className={checked ? "text-emerald-400" : "text-zinc-500"}>
+            {checked ? "✓ All mods are up to date!" : "All mods are up to date"}
+          </span>
+        )}
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => setAdding(true)}>
             Add mod…
@@ -90,13 +110,14 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
       </div>
       {report && <LaunchReport report={report} />}
       <ul className="divide-y divide-zinc-800">
-        {mods.map((m) => {
+        {mods.map((m, i) => {
           const unmet = (m.unmetDependencies ?? []).map((d) => dependencyLabel(installed, d));
           const dependants = dependantsOf(installed, m.id).filter((d) => d.enabled);
           const issue = report?.issues?.find((i) => i.modId === m.id);
           return (
             <li key={m.id} className="flex items-center gap-3 py-2.5">
               <Toggle
+                first={i === 0}
                 checked={m.active}
                 disabled={busy !== null || unmet.length > 0}
                 title={unmet.length ? `Requires ${unmet.join(", ")}` : m.active ? "Disable" : "Enable"}
@@ -131,10 +152,16 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
                 {m.version}
                 {updates.has(m.id) && <span className="text-amber-400"> → {updates.get(m.id)}</span>}
               </span>
-              {updates.has(m.id) && (
+              {updating === m.id ? (
+                <span className="flex shrink-0 items-center gap-2 text-xs text-zinc-300">
+                  <Spinner /> Updating…
+                </span>
+              ) : updates.has(m.id) ? (
                 <Button disabled={busy !== null} onClick={() => act(() => update(m.id))}>
-                  {busy === m.id ? "Updating…" : "Update"}
+                  Update
                 </Button>
+              ) : (
+                updated.has(m.id) && <span className="shrink-0 text-xs text-emerald-400">✓ Updated</span>
               )}
               <Button variant="danger" disabled={busy !== null} onClick={() => remove(m)}>
                 {busy === m.id ? "Working…" : "Uninstall"}

@@ -1,5 +1,11 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Backend, Runtime } from "../api";
+import { clickFocused, focusFirst, moveFocus } from "../focus";
+import { useGamepad } from "../gamepad";
+import { useModalLayer, useModalOpen } from "../modals";
+import { useLayout } from "../uimode";
+
+export { useModalOpen };
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -20,6 +26,16 @@ export function Button({
       {...props}
       className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${variants[variant]} ${className}`}
     />
+  );
+}
+
+// Spinner marks work that takes a while: checking for updates, updating a mod.
+export function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 shrink-0 animate-spin ${className}`} fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -50,26 +66,31 @@ type ToggleProps = {
   checked: boolean;
   disabled?: boolean;
   title?: string;
+  // first marks where the controller focus lands when the page is entered.
+  first?: boolean;
   onChange: (checked: boolean) => void;
 };
 
-export function Toggle({ checked, disabled, title, onChange }: ToggleProps) {
+export function Toggle({ checked, disabled, title, first, onChange }: ToggleProps) {
+  // A finger needs a bigger switch than a mouse pointer.
+  const deck = useLayout() === "deck";
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       title={title}
+      data-focus-first={first || undefined}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-        checked ? "bg-indigo-600" : "bg-zinc-700"
-      }`}
+      className={`relative shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        deck ? "h-7 w-12" : "h-5 w-9"
+      } ${checked ? "bg-indigo-600" : "bg-zinc-700"}`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-          checked ? "translate-x-4" : ""
-        }`}
+        className={`absolute rounded-full bg-white transition-transform ${
+          deck ? "top-1 left-1 h-5 w-5" : "top-0.5 left-0.5 h-4 w-4"
+        } ${checked ? (deck ? "translate-x-5" : "translate-x-4") : ""}`}
       />
     </button>
   );
@@ -97,11 +118,45 @@ const modalSizes = {
   xl: "flex h-[85vh] max-w-6xl flex-col",
 };
 
+// On the Deck's small screen dialogs use the whole window.
+const deckModalSizes = {
+  md: "max-w-xl",
+  lg: "max-w-3xl",
+  xl: "flex h-full max-w-none flex-1 flex-col",
+};
+
 export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
+  const deck = useLayout() === "deck";
+  const sizes = deck ? deckModalSizes : modalSizes;
+  const box = useRef<HTMLDivElement>(null);
+  const top = useModalLayer(true);
+
+  // On the deck a dialog is driven by the controller: it takes the focus when
+  // it opens, the d-pad moves inside it and B closes it.
+  useEffect(() => {
+    if (deck && top) focusFirst(box.current);
+  }, [deck, top]);
+
+  useGamepad(
+    {
+      onUp: () => moveFocus("up", box.current),
+      onDown: () => moveFocus("down", box.current),
+      onLeft: () => moveFocus("left", box.current),
+      onRight: () => moveFocus("right", box.current),
+      onAccept: () => clickFocused(box.current),
+      onBack: onClose,
+    },
+    deck && top,
+  );
+
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-6" onMouseDown={onClose}>
+    <div
+      className={`fixed inset-0 z-10 flex items-center justify-center bg-black/60 ${sizes === deckModalSizes ? "p-3" : "p-6"}`}
+      onMouseDown={onClose}
+    >
       <div
-        className={`w-full ${modalSizes[size]} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
+        ref={box}
+        className={`w-full ${sizes[size]} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 className="mb-4 text-lg font-semibold">{title}</h2>

@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
-import { errorMessage, Game, Library, SettingsStore } from "./api";
+import { errorMessage, Game, InfoService, Library, Settings, SettingsStore } from "./api";
+import ConfirmHost from "./confirm";
+import { UIModeProvider } from "./uimode";
 import WindowFrame from "./components/WindowFrame";
 import Main from "./screens/Main";
 import Setup from "./screens/Setup";
 
-type State = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; setup: boolean };
+type State =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; setup: boolean; settings: Settings; steamDeck: boolean };
 
 function App() {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -22,16 +27,23 @@ function App() {
   };
 
   useEffect(() => {
-    Promise.all([SettingsStore.Get(), reloadGames()])
-      .then(([settings]) => setState({ status: "ready", setup: !settings.setupCompleted }))
+    Promise.all([SettingsStore.Get(), InfoService.GetInfo(), reloadGames()])
+      .then(([settings, info]) =>
+        setState({ status: "ready", setup: !settings.setupCompleted, settings, steamDeck: info.steamDeck }),
+      )
       .catch((err) => setState({ status: "error", message: errorMessage(err) }));
   }, []);
 
   const finishSetup = async (game?: Game) => {
     try {
-      await SettingsStore.CompleteSetup();
+      const settings = await SettingsStore.CompleteSetup();
       await reloadGames(game?.id);
-      setState({ status: "ready", setup: false });
+      setState((prev) => ({
+        status: "ready",
+        setup: false,
+        settings,
+        steamDeck: prev.status === "ready" ? prev.steamDeck : false,
+      }));
     } catch (err) {
       setState({ status: "error", message: errorMessage(err) });
     }
@@ -49,7 +61,15 @@ function App() {
         <Main games={games} selectedId={selectedId} onSelect={setSelectedId} onGamesChanged={reloadGames} />
       );
   }
-  return <WindowFrame>{screen}</WindowFrame>;
+  if (state.status !== "ready") {
+    return <WindowFrame>{screen}</WindowFrame>;
+  }
+  return (
+    <UIModeProvider settings={state.settings} steamDeck={state.steamDeck}>
+      <WindowFrame>{screen}</WindowFrame>
+      <ConfirmHost />
+    </UIModeProvider>
+  );
 }
 
 export default App;

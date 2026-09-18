@@ -45,3 +45,9 @@ jobs:
 
       - name: Build
         run: go build -o bin/hermit .
+
+      # Dependency bumps must bring THIRD-PARTY.md along.
+      - name: Third-party licenses are up to date
+        run: |
+          python3 build/licenses/third-party.py
+          git diff --exit-code THIRD-PARTY.md

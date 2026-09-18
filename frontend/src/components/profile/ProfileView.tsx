@@ -3,7 +3,10 @@ import { errorMessage, Game, InstallService, Profile } from "../../api";
 import { packageLabel } from "../../format";
 import { PlayButton } from "../launch";
 import { ExportModal } from "../share";
-import { Button, ErrorText } from "../ui";
+import { Button, ErrorText, useModalOpen } from "../ui";
+import { useGamepad } from "../../gamepad";
+import { usePageHints } from "../../screens/shell";
+import { useLayout } from "../../uimode";
 import BrowseTab from "./BrowseTab";
 import ConfigTab from "./ConfigTab";
 import InstalledTab from "./InstalledTab";
@@ -20,6 +23,8 @@ type Props = {
 };
 
 export default function ProfileView({ game, profileId, onBack, onGameChanged, onOpenProfile }: Props) {
+  const deck = useLayout() === "deck";
+  const modalOpen = useModalOpen();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tab, setTab] = useState<Tab>("installed");
   const [error, setError] = useState("");
@@ -38,6 +43,15 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged, on
     { id: "config", label: "Config" },
   ];
 
+  const step = (by: number) =>
+    setTab((current) => {
+      const at = tabs.findIndex((t) => t.id === current);
+      return tabs[(at + by + tabs.length) % tabs.length].id;
+    });
+
+  useGamepad({ onTabPrev: () => step(-1), onTabNext: () => step(1) }, deck && !modalOpen);
+  usePageHints(deck ? ["LT / RT — tabs"] : []);
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-zinc-800 px-6 pt-4">
@@ -51,7 +65,7 @@ export default function ProfileView({ game, profileId, onBack, onGameChanged, on
             <span className="truncate text-xs text-indigo-400">Modpack {packageLabel(profile.modpack)}</span>
           )}
         </div>
-        <nav className="ml-6 flex gap-1 self-end">
+        <nav className="ml-6 flex gap-1 self-end" title={deck ? "LT / RT switch tabs" : undefined}>
           {tabs.map((t) => (
             <button
               key={t.id}

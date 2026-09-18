@@ -10,11 +10,35 @@ import (
 	"sync"
 )
 
+// UIMode selects the interface layout. Auto follows the hardware: the Steam
+// Deck gets the deck layout, everything else the desktop one.
+type UIMode string
+
+const (
+	UIModeAuto    UIMode = "auto"
+	UIModeDesktop UIMode = "desktop"
+	UIModeDeck    UIMode = "deck"
+)
+
+// BrowseView is how the mod browser lists packages. Auto follows the layout:
+// cards on the deck, a list on the desktop.
+type BrowseView string
+
+const (
+	BrowseViewAuto  BrowseView = "auto"
+	BrowseViewCards BrowseView = "cards"
+	BrowseViewList  BrowseView = "list"
+)
+
 type Settings struct {
 	// SetupCompleted is set once the first-run setup is finished or skipped.
 	SetupCompleted bool `json:"setupCompleted"`
 	// AllowNSFW shows packages marked NSFW when browsing mods.
 	AllowNSFW bool `json:"allowNsfw"`
+	// UIMode is the interface layout; empty means auto.
+	UIMode UIMode `json:"uiMode"`
+	// BrowseView is the mod browser layout; empty means auto.
+	BrowseView BrowseView `json:"browseView"`
 }
 
 type Store struct {
@@ -58,7 +82,7 @@ func (s *Store) Update(st Settings) (Settings, error) {
 }
 
 func (s *Store) load() (Settings, error) {
-	var st Settings
+	st := Settings{UIMode: UIModeAuto, BrowseView: BrowseViewAuto}
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return st, nil
@@ -66,7 +90,16 @@ func (s *Store) load() (Settings, error) {
 	if err != nil {
 		return st, err
 	}
-	return st, json.Unmarshal(data, &st)
+	if err := json.Unmarshal(data, &st); err != nil {
+		return st, err
+	}
+	if st.UIMode != UIModeDesktop && st.UIMode != UIModeDeck {
+		st.UIMode = UIModeAuto
+	}
+	if st.BrowseView != BrowseViewCards && st.BrowseView != BrowseViewList {
+		st.BrowseView = BrowseViewAuto
+	}
+	return st, nil
 }
 
 func (s *Store) save(st Settings) error {

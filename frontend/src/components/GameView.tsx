@@ -17,6 +17,7 @@ type Props = {
 
 export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: Props) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -31,7 +32,11 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
   };
 
   const loadProfiles = useCallback(async () => {
-    setProfiles((await Library.ListProfiles(game.id)) ?? []);
+    try {
+      setProfiles((await Library.ListProfiles(game.id)) ?? []);
+    } finally {
+      setLoadingProfiles(false);
+    }
   }, [game.id]);
 
   useEffect(() => {
@@ -99,6 +104,11 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold tracking-wide text-zinc-400 uppercase">Profiles</h2>
         <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+          {loadingProfiles && profiles.length === 0 && (
+            <li className="flex items-center px-4 py-2.5">
+              <span className="h-8 flex-1 animate-pulse rounded bg-zinc-800/60" />
+            </li>
+          )}
           {profiles.map((p) => {
             const active = p.id === game.activeProfile;
             const modCount = p.mods?.length ?? 0;
@@ -121,7 +131,7 @@ export default function GameView({ game, onChanged, onRemoved, onOpenProfile }: 
                 <span className="text-xs text-zinc-500">
                   {modCount} {modCount === 1 ? "mod" : "mods"}
                 </span>
-                <Button variant="secondary" onClick={() => onOpenProfile(p.id)}>
+                <Button variant="secondary" data-focus-first={active || undefined} onClick={() => onOpenProfile(p.id)}>
                   Open
                 </Button>
                 {active ? (

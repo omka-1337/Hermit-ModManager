@@ -9,8 +9,36 @@ the manager's profiles and are only linked into the game while it runs.
 - Multiple profiles per game, enable/disable mods, config editor
 - Launch from Hermit or straight from Steam via launch options (Proton and native Linux games)
 - Profile export/import compatible with r2modman (`.r2z` files and profile codes)
+- A Steam Deck layout driven by the controller, next to the regular desktop one
 
 Built with [Wails v3](https://v3.wails.io) (Go + React/TypeScript). Windows support is planned.
+
+## Screenshots
+
+Hermit has two layouts. The Steam Deck one is built for a controller: games sit in a bar along the top and are
+switched with the shoulder buttons, the d-pad moves the focus and B steps back out.
+
+![A game and its profiles in the Steam Deck layout](docs/screenshots/deck-gamescreen.png)
+
+![Installed mods of a profile](docs/screenshots/deck-managerscreen.png)
+
+![Browsing Thunderstore as cards](docs/screenshots/deck-browsescreen.png)
+
+The desktop layout keeps the games in a sidebar and fits more on screen; the mod browser can be shown as cards or
+as a list in either layout.
+
+![A game and its profiles on the desktop](docs/screenshots/desktop-gamescreen.png)
+
+![Browsing Thunderstore as a list](docs/screenshots/desktop-browsescreen.png)
+
+## Install
+
+Download the AppImage from the [releases page](https://github.com/omka-1337/Hermit-ModManager/releases), make it
+executable (`chmod +x Hermit-*.AppImage`) and run it. It needs FUSE; on SteamOS and most distributions it is already
+there. To use it from Game Mode on a Steam Deck, add the AppImage to Steam as a non-Steam game.
+
+An AUR package, and Windows and macOS builds, are planned before 1.0; for now the AppImage is the only build.
+What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements (Arch Linux)
 
@@ -50,3 +78,14 @@ internal/steam/          Steam libraries, launch options, icons
 frontend/                React + TypeScript + Tailwind (Vite)
 build/                   Wails build and packaging config
 ```
+
+## License
+
+Hermit is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+See [LICENSE](LICENSE) for the full text.
+
+Copyright (C) 2026 Omka
+
+Dependencies and the libraries bundled into the AppImage keep their own licenses; they are listed in
+[THIRD-PARTY.md](THIRD-PARTY.md), regenerated with `wails3 task third-party` after dependency changes.

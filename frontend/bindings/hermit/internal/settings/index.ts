@@ -6,6 +6,11 @@ export {
     Store
 };
 
+export {
+    BrowseView,
+    UIMode
+} from "./models.js";
+
 export type {
     Settings
 } from "./models.js";

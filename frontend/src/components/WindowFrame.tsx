@@ -1,5 +1,6 @@
 import { CSSProperties, ReactNode, useEffect, useState } from "react";
 import { Window } from "@wailsio/runtime";
+import { useLayout } from "../uimode";
 
 // Wails starts a window drag from elements with this CSS variable (frameless windows).
 const drag = { "--wails-draggable": "drag" } as CSSProperties;
@@ -18,8 +19,13 @@ function useMaximised(): boolean {
 
 // WindowFrame replaces the system window decorations: a title bar with window
 // controls and a thin border so the window edge stays visible on dark desktops.
+// The deck layout runs full screen like a console, so it has no title bar at
+// all; quitting lives in its bar of games.
 export default function WindowFrame({ children }: { children: ReactNode }) {
   const maximised = useMaximised();
+  const deck = useLayout() === "deck";
+
+  if (deck) return <div className="h-full bg-zinc-950">{children}</div>;
 
   return (
     <div className={`flex h-full flex-col bg-zinc-950 ${maximised ? "" : "border border-zinc-700/70"}`}>

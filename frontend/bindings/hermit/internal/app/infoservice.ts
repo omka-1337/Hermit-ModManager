@@ -9,6 +9,14 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
+/**
+ * CheckUpdate asks GitHub for the newest release of Hermit itself. A build
+ * without a version (a development build) is never out of date.
+ */
+export function CheckUpdate(): $CancellablePromise<$models.Update> {
+    return $Call.ByID(4068918144);
+}
+
 export function GetInfo(): $CancellablePromise<$models.AppInfo> {
     return $Call.ByID(4064989265);
 }

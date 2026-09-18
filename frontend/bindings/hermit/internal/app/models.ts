@@ -13,6 +13,13 @@ export interface AppInfo {
     "version": string;
     "os": string;
     "arch": string;
+
+    /**
+     * SteamDeck reports whether Hermit runs on a Steam Deck, which decides
+     * the interface layout when the UI mode is set to auto.
+     */
+    "steamDeck": boolean;
+    "repository": string;
 }
 
 export interface ConfigContent {
@@ -55,4 +62,19 @@ export interface LaunchInfo {
      * RunningProfile is the profile of the running session, if any.
      */
     "runningProfile": string;
+}
+
+/**
+ * Update is the answer to "is there a newer Hermit?". Hermit does not install
+ * itself: the user downloads the release.
+ */
+export interface Update {
+    "current": string;
+    "latest": string;
+    "available": boolean;
+
+    /**
+     * URL is the release page, empty when nothing was found.
+     */
+    "url": string;
 }
