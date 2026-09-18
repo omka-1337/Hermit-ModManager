@@ -115,6 +115,10 @@ frontend/                React + TypeScript + Tailwind (Vite)
 build/                   Wails build and packaging config
 ```
 
+## Disclaimer
+
+The project was created with significant help from an AI assistant (Claude Code). However, the concept itself, as well as the entire design and functionality were conceived and tested by me.
+
 ## License
 
 Hermit is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
