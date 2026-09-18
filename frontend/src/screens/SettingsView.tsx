@@ -92,9 +92,9 @@ export default function SettingsView() {
             Copyright (C) 2026 Omka. Free software under the{" "}
             <button
               className="text-indigo-400 hover:underline"
-              onClick={() => Browser.OpenURL("https://www.gnu.org/licenses/agpl-3.0.html")}
+              onClick={() => Browser.OpenURL("https://www.gnu.org/licenses/gpl-3.0.html")}
             >
-              GNU AGPL v3
+              GNU GPL v3
             </button>{" "}
             or later, with no warranty. Source:{" "}
             <button
