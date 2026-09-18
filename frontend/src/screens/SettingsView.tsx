@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { AppInfo, errorMessage, InfoService, Settings, SettingsStore, UIMode } from "../api";
+import { Browser } from "@wailsio/runtime";
 import { Button, ErrorText } from "../components/ui";
 import { useUIMode } from "../uimode";
+
+const repository = "https://github.com/omka-1337/Hermit-ModManager";
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -84,6 +87,22 @@ export default function SettingsView() {
           <p>{info.name}</p>
           <p className="text-zinc-500">
             v{info.version} · {info.os}/{info.arch}
+          </p>
+          <p className="text-xs text-zinc-500">
+            Copyright (C) 2026 Omka. Free software under the{" "}
+            <button
+              className="text-indigo-400 hover:underline"
+              onClick={() => Browser.OpenURL("https://www.gnu.org/licenses/agpl-3.0.html")}
+            >
+              GNU AGPL v3
+            </button>{" "}
+            or later, with no warranty. Source:{" "}
+            <button
+              className="text-indigo-400 hover:underline"
+              onClick={() => Browser.OpenURL(repository)}
+            >
+              {repository.replace("https://", "")}
+            </button>
           </p>
         </section>
       )}
