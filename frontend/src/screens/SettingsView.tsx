@@ -54,6 +54,7 @@ export default function SettingsView() {
             ].map((option) => (
               <Button
                 key={option.mode}
+                data-focus-first={preference === option.mode || undefined}
                 variant={preference === option.mode ? "primary" : "secondary"}
                 onClick={() => act(() => setPreference(option.mode))}
               >

@@ -110,13 +110,14 @@ export default function InstalledTab({ onBrowse }: { onBrowse: () => void }) {
       </div>
       {report && <LaunchReport report={report} />}
       <ul className="divide-y divide-zinc-800">
-        {mods.map((m) => {
+        {mods.map((m, i) => {
           const unmet = (m.unmetDependencies ?? []).map((d) => dependencyLabel(installed, d));
           const dependants = dependantsOf(installed, m.id).filter((d) => d.enabled);
           const issue = report?.issues?.find((i) => i.modId === m.id);
           return (
             <li key={m.id} className="flex items-center gap-3 py-2.5">
               <Toggle
+                first={i === 0}
                 checked={m.active}
                 disabled={busy !== null || unmet.length > 0}
                 title={unmet.length ? `Requires ${unmet.join(", ")}` : m.active ? "Disable" : "Enable"}

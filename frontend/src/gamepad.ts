@@ -7,6 +7,8 @@ const buttons = {
   b: 1,
   lb: 4,
   rb: 5,
+  lt: 6,
+  rt: 7,
   up: 12,
   down: 13,
   left: 14,
@@ -23,6 +25,8 @@ const keys: Record<string, keyof Handlers> = {
   Enter: "onAccept",
   Escape: "onBack",
   Backspace: "onBack",
+  KeyQ: "onTabPrev",
+  KeyE: "onTabNext",
   BracketLeft: "onPrev",
   BracketRight: "onNext",
   PageUp: "onPrev",
@@ -41,6 +45,9 @@ export type Handlers = {
   onRight?: () => void;
   onAccept?: () => void;
   onBack?: () => void;
+  // The triggers move between the tabs of the current page.
+  onTabPrev?: () => void;
+  onTabNext?: () => void;
 };
 
 // useGamepad calls the handlers when a controller button is pressed: LB/RB
@@ -83,6 +90,8 @@ export function useGamepad(handlers: Handlers, enabled = true) {
       if (edge(buttons.down)) latest.current.onDown?.();
       if (edge(buttons.left)) latest.current.onLeft?.();
       if (edge(buttons.right)) latest.current.onRight?.();
+      if (edge(buttons.lt)) latest.current.onTabPrev?.();
+      if (edge(buttons.rt)) latest.current.onTabNext?.();
       if (edge(buttons.a)) latest.current.onAccept?.();
       if (edge(buttons.b)) latest.current.onBack?.();
     };

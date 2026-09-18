@@ -1,11 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Application } from "@wailsio/runtime";
 import { Game } from "../api";
 import GameIcon from "../components/GameIcon";
 import { useGamepad } from "../gamepad";
 import { clickFocused, Direction, focusFirst, moveFocus } from "../focus";
 import { Button, useModalOpen } from "../components/ui";
-import { GearIcon, PlusIcon, PowerIcon, ShellProps } from "./shell";
+import { GearIcon, HintsContext, PlusIcon, PowerIcon, ShellProps } from "./shell";
 
 // Entry is a stop in the game bar: a game, or one of the two actions after them.
 type Entry = { kind: "game"; game: Game } | { kind: "add" } | { kind: "settings" };
@@ -96,6 +96,8 @@ export default function ConsoleShell({
   };
 
   const [leaving, setLeaving] = useState(false);
+  const [pageHints, setPageHints] = useState<string[]>([]);
+  const publishHints = useCallback((hints: string[]) => setPageHints(hints), []);
 
   // A dialog takes over the buttons while it is open.
   const modalOpen = useModalOpen();
@@ -134,9 +136,9 @@ export default function ConsoleShell({
     <div className="flex h-full flex-col">
       <GameBar entries={entries} index={index} compact={zone === "page"} onPick={goto} />
       <main ref={main} className="min-h-0 flex-1 overflow-auto">
-        {children}
+        <HintsContext.Provider value={publishHints}>{children}</HintsContext.Provider>
       </main>
-      <HintBar zone={zone} canGoBack={canGoBack} />
+      <HintBar zone={zone} canGoBack={canGoBack} pageHints={pageHints} />
       {leaving && <QuitPrompt onCancel={() => setLeaving(false)} onQuit={() => Application.Quit()} />}
     </div>
   );
@@ -234,11 +236,11 @@ function ShoulderHint({ label }: { label: string }) {
   );
 }
 
-function HintBar({ zone, canGoBack }: { zone: Zone; canGoBack: boolean }) {
+function HintBar({ zone, canGoBack, pageHints }: { zone: Zone; canGoBack: boolean; pageHints: string[] }) {
   const hints =
     zone === "bar"
       ? ["LB / RB — switch", "A / ↓ — open", canGoBack ? "B — back" : "B — quit"]
-      : ["D-pad — move", "A — select", "B — back to games", "LB / RB — switch"];
+      : ["D-pad — move", "A — select", "B — back to games", ...pageHints];
   return (
     <footer className="flex gap-4 border-t border-zinc-800 bg-zinc-900 px-4 py-1.5 text-xs text-zinc-500">
       {hints.map((hint) => (

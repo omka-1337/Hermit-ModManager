@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { createContext, ReactNode, useContext, useEffect } from "react";
 import { Game } from "../api";
 
 // Page is what the shell's chrome is pointing at. The content itself is built
@@ -19,6 +19,19 @@ export type ShellProps = {
   onBack: () => void;
   children: ReactNode;
 };
+
+// Pages can add their own button hints to the console layout's hint bar; on
+// the desktop there is no provider and the hook does nothing.
+export const HintsContext = createContext<((hints: string[]) => void) | null>(null);
+
+export function usePageHints(hints: string[]) {
+  const publish = useContext(HintsContext);
+  const key = hints.join("|");
+  useEffect(() => {
+    publish?.(key ? key.split("|") : []);
+    return () => publish?.([]);
+  }, [publish, key]);
+}
 
 export function PlusIcon() {
   return (

@@ -78,7 +78,7 @@ export default function GamePicker({ onAdded, actions }: Props) {
           <p className="px-4 py-6 text-center text-sm text-zinc-500">No compatible games found.</p>
         ) : (
           <ul className="divide-y divide-zinc-800">
-            {games.map((c) => (
+            {games.map((c, i) => (
               <li key={c.path} className="flex items-center gap-3 px-4 py-2.5">
                 <GameIcon name={c.name} steamAppId={c.steamAppId} size={36} />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -94,7 +94,13 @@ export default function GamePicker({ onAdded, actions }: Props) {
                 {c.alreadyAdded ? (
                   <span className="w-16 text-center text-xs text-zinc-500">Added</span>
                 ) : (
-                  <Button variant="primary" className="w-16" disabled={adding !== null} onClick={() => add(c)}>
+                  <Button
+                    variant="primary"
+                    className="w-16"
+                    data-focus-first={i === 0 || undefined}
+                    disabled={adding !== null}
+                    onClick={() => add(c)}
+                  >
                     Add
                   </Button>
                 )}

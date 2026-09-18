@@ -197,11 +197,12 @@ export default function PackageBrowser({ game, modpacksOnly, isInstalled, render
           <div className="px-6 py-2 text-xs text-zinc-500">{formatCount(total)} packages</div>
           {cards ? (
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3 px-4 pb-3">
-              {packages.map((p) => {
+              {packages.map((p, i) => {
                 const active = selected?.namespace === p.namespace && selected?.name === p.name;
                 return (
                   <li key={`${p.namespace}-${p.name}`}>
                     <button
+                      data-focus-first={i === 0 || undefined}
                       onClick={() => setSelected({ namespace: p.namespace, name: p.name })}
                       className={`flex h-full w-full flex-col overflow-hidden rounded-lg border text-left transition ${
                         active ? "border-indigo-500 bg-zinc-800" : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-700"
@@ -235,11 +236,12 @@ export default function PackageBrowser({ game, modpacksOnly, isInstalled, render
             </ul>
           ) : (
             <ul className="flex flex-col px-3 pb-3">
-              {packages.map((p) => {
+              {packages.map((p, i) => {
                 const active = selected?.namespace === p.namespace && selected?.name === p.name;
                 return (
                   <li key={`${p.namespace}-${p.name}`}>
                     <button
+                      data-focus-first={i === 0 || undefined}
                       onClick={() => setSelected({ namespace: p.namespace, name: p.name })}
                       className={`flex w-full gap-3 rounded-md px-3 py-2.5 text-left ${
                         active ? "bg-zinc-800" : "hover:bg-zinc-800/50"

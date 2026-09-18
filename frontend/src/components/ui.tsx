@@ -1,6 +1,11 @@
-import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Backend, Runtime } from "../api";
+import { clickFocused, focusFirst, moveFocus } from "../focus";
+import { useGamepad } from "../gamepad";
+import { useModalLayer, useModalOpen } from "../modals";
 import { useLayout } from "../uimode";
+
+export { useModalOpen };
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -61,10 +66,12 @@ type ToggleProps = {
   checked: boolean;
   disabled?: boolean;
   title?: string;
+  // first marks where the controller focus lands when the page is entered.
+  first?: boolean;
   onChange: (checked: boolean) => void;
 };
 
-export function Toggle({ checked, disabled, title, onChange }: ToggleProps) {
+export function Toggle({ checked, disabled, title, first, onChange }: ToggleProps) {
   // A finger needs a bigger switch than a mouse pointer.
   const deck = useLayout() === "deck";
   return (
@@ -73,6 +80,7 @@ export function Toggle({ checked, disabled, title, onChange }: ToggleProps) {
       role="switch"
       aria-checked={checked}
       title={title}
+      data-focus-first={first || undefined}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -117,32 +125,29 @@ const deckModalSizes = {
   xl: "flex h-full max-w-none flex-1 flex-col",
 };
 
-// Open dialogs are counted so controller navigation behind them can pause.
-let openModals = 0;
-const modalListeners = new Set<(open: boolean) => void>();
-
-// useModalOpen reports whether any dialog is currently on screen.
-export function useModalOpen(): boolean {
-  const [open, setOpen] = useState(openModals > 0);
-  useEffect(() => {
-    modalListeners.add(setOpen);
-    setOpen(openModals > 0);
-    return () => void modalListeners.delete(setOpen);
-  }, []);
-  return open;
-}
-
 export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
-  const sizes = useLayout() === "deck" ? deckModalSizes : modalSizes;
+  const deck = useLayout() === "deck";
+  const sizes = deck ? deckModalSizes : modalSizes;
+  const box = useRef<HTMLDivElement>(null);
+  const top = useModalLayer(true);
 
+  // On the deck a dialog is driven by the controller: it takes the focus when
+  // it opens, the d-pad moves inside it and B closes it.
   useEffect(() => {
-    openModals++;
-    modalListeners.forEach((notify) => notify(true));
-    return () => {
-      openModals--;
-      modalListeners.forEach((notify) => notify(openModals > 0));
-    };
-  }, []);
+    if (deck && top) focusFirst(box.current);
+  }, [deck, top]);
+
+  useGamepad(
+    {
+      onUp: () => moveFocus("up", box.current),
+      onDown: () => moveFocus("down", box.current),
+      onLeft: () => moveFocus("left", box.current),
+      onRight: () => moveFocus("right", box.current),
+      onAccept: () => clickFocused(box.current),
+      onBack: onClose,
+    },
+    deck && top,
+  );
 
   return (
     <div
@@ -150,6 +155,7 @@ export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
       onMouseDown={onClose}
     >
       <div
+        ref={box}
         className={`w-full ${sizes[size]} rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl`}
         onMouseDown={(e) => e.stopPropagation()}
       >

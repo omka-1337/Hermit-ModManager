@@ -1,4 +1,5 @@
-import { CancelError, Dialogs } from "@wailsio/runtime";
+import { CancelError } from "@wailsio/runtime";
+import { ask } from "./confirmhost";
 
 export { Backend, Library, Runtime } from "../bindings/hermit/internal/library";
 export type { Game, GameCandidate, Mod, Profile } from "../bindings/hermit/internal/library";
@@ -50,21 +51,11 @@ export function errorMessage(err: unknown): string {
 }
 
 // confirmDanger asks before an irreversible action; resolves true if confirmed.
-export async function confirmDanger(title: string, message: string, action: string): Promise<boolean> {
-  const answer = await Dialogs.Question({
-    Title: title,
-    Message: message,
-    Buttons: [{ Label: action }, { Label: "Cancel", IsCancel: true, IsDefault: true }],
-  });
-  return answer === action;
+export function confirmDanger(title: string, message: string, action: string): Promise<boolean> {
+  return ask({ title, message, action, danger: true });
 }
 
 // confirm asks a yes/no question; resolves true if the action button was chosen.
-export async function confirm(title: string, message: string, action: string): Promise<boolean> {
-  const answer = await Dialogs.Question({
-    Title: title,
-    Message: message,
-    Buttons: [{ Label: action, IsDefault: true }, { Label: "Cancel", IsCancel: true }],
-  });
-  return answer === action;
+export function confirm(title: string, message: string, action: string): Promise<boolean> {
+  return ask({ title, message, action });
 }

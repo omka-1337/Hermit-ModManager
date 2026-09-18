@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage, Game, InfoService, Library, Settings, SettingsStore } from "./api";
+import ConfirmHost from "./confirm";
 import { UIModeProvider } from "./uimode";
 import WindowFrame from "./components/WindowFrame";
 import Main from "./screens/Main";
@@ -66,6 +67,7 @@ function App() {
   return (
     <UIModeProvider settings={state.settings} steamDeck={state.steamDeck}>
       <WindowFrame>{screen}</WindowFrame>
+      <ConfirmHost />
     </UIModeProvider>
   );
 }
