@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
-import { AppInfo, errorMessage, InfoService, Settings, SettingsStore, UIMode } from "../api";
+import { AppInfo, errorMessage, InfoService, Settings, SettingsStore, UIMode, Update } from "../api";
 import { Browser } from "@wailsio/runtime";
-import { Button, ErrorText } from "../components/ui";
+import { Button, ErrorText, Spinner } from "../components/ui";
 import { useUIMode } from "../uimode";
-
-const repository = "https://github.com/omka-1337/Hermit-ModManager";
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [release, setRelease] = useState<Update | null>(null);
+  const [updateError, setUpdateError] = useState("");
   const { preference, layout, steamDeck, setPreference } = useUIMode();
 
   useEffect(() => {
     InfoService.GetInfo().then(setInfo).catch(console.error);
+    InfoService.CheckUpdate()
+      .then(setRelease)
+      .catch((err) => setUpdateError(errorMessage(err)));
     SettingsStore.Get()
       .then(setSettings)
       .catch((err) => setError(errorMessage(err)));
@@ -89,6 +92,22 @@ export default function SettingsView() {
           <p className="text-zinc-500">
             v{info.version} · {info.os}/{info.arch}
           </p>
+          {updateError ? (
+            <p className="text-xs text-zinc-500">Could not check for updates: {updateError}</p>
+          ) : !release ? (
+            <p className="flex items-center gap-2 text-xs text-zinc-500">
+              <Spinner /> Checking for a newer version…
+            </p>
+          ) : release.available ? (
+            <p className="flex items-center gap-2 text-sm text-amber-400">
+              Hermit {release.latest} is available
+              <Button variant="secondary" onClick={() => Browser.OpenURL(release.url)}>
+                Open release page
+              </Button>
+            </p>
+          ) : (
+            <p className="text-xs text-emerald-400">✓ You are on the latest version</p>
+          )}
           <p className="text-xs text-zinc-500">
             Copyright (C) 2026 Omka. Free software under the{" "}
             <button
@@ -98,11 +117,8 @@ export default function SettingsView() {
               GNU GPL v3
             </button>{" "}
             or later, with no warranty. Source:{" "}
-            <button
-              className="text-indigo-400 hover:underline"
-              onClick={() => Browser.OpenURL(repository)}
-            >
-              {repository.replace("https://", "")}
+            <button className="text-indigo-400 hover:underline" onClick={() => Browser.OpenURL(info.repository)}>
+              {info.repository.replace("https://", "")}
             </button>
           </p>
         </section>

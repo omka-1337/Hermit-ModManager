@@ -97,7 +97,7 @@ func main() {
 		Name:        app.Name,
 		Description: "BepInEx mod manager for Linux",
 		Services: []application.Service{
-			application.NewService(app.NewInfoService()),
+			application.NewService(app.NewInfoService(b.github)),
 			application.NewService(b.lib),
 			application.NewService(settingsStore),
 			application.NewService(app.NewBrowseService(b.lib, b.ts, settingsStore)),
