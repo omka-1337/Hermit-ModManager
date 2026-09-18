@@ -40,6 +40,53 @@ there. To use it from Game Mode on a Steam Deck, add the AppImage to Steam as a 
 An AUR package, and Windows and macOS builds, are planned before 1.0; for now the AppImage is the only build.
 What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
+## Compatibility
+
+The AppImage carries GTK and WebKit inside, so the distribution does not have to provide them. What it does need is a
+recent enough C library, which is the only thing that decides whether it starts at all:
+
+- **glibc 2.38 or newer** — check yours with `ldd --version`
+- **FUSE** (2 or 3) to mount the AppImage; without it, run it as `./Hermit-*.AppImage --appimage-extract-and-run`
+- **x86_64**, and **Steam**, because games are found through Steam libraries
+
+That makes the table below a statement about glibc versions rather than about distributions. Only the rows marked
+*tested* were actually run; the rest is what the glibc requirement implies.
+
+| System | glibc | Status |
+| --- | --- | --- |
+| Arch, EndeavourOS, Manjaro | rolling | Tested — Hermit is developed here |
+| SteamOS 3.6, 3.7+ (Steam Deck) | 2.39, 2.41 | Expected to work, not yet tested on a Deck |
+| SteamOS 3.5 | 2.37 | Will not start — glibc too old |
+| Ubuntu 24.04+, Mint 22+, Pop!_OS 24.04 | 2.39+ | Expected to work |
+| Debian 13+ | 2.41 | Expected to work |
+| Fedora 39+, Bazzite | 2.38+ | Expected to work |
+| openSUSE Leap 15.6, Tumbleweed | 2.38+ | Expected to work |
+| Ubuntu 22.04, Mint 21, Debian 12 | 2.35, 2.36 | Will not start — glibc too old |
+| Windows | — | Not supported yet, planned before 1.0 |
+| macOS | — | Not supported yet, planned before 1.0 if the Steam and Proton parts can be made to fit |
+
+Wayland and X11 both work; the window draws its own frame instead of the desktop's.
+
+There are no Windows or macOS builds yet. The parts that are missing are not the interface but the platform ones:
+mods reach the game through symlinks, Proton prefixes and Steam launch options are handled the Linux way, and the
+launch wrapper runs the game through the shell.
+
+### Games
+
+Any game on Thunderstore that uses BepInEx should work, and the games below are the ones actually exercised so far.
+Mods install into the profile and reach the game through symlinks, so nothing is written into the game folder.
+
+| Game | Runtime | Status |
+| --- | --- | --- |
+| Lethal Company | Proton | Tested — mods installed, enabled and launched through Steam |
+| PEAK | Proton | Tested — including installing a modpack as its own profile |
+| Content Warning, R.E.P.O., Valheim | Proton | Browsing and installing tested, launching not |
+| Native Linux games (`run_bepinex.sh`) | native | Implemented, never tested on a real game |
+| IL2CPP games (BepInEx 6) | either | Detected and installed, never tested on a real game |
+
+If a game of yours works, or does not, an issue with the game name and what happened is the most useful thing you can
+send.
+
 ## Requirements (Arch Linux)
 
 ```sh
