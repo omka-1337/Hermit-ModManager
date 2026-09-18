@@ -9,8 +9,27 @@ the manager's profiles and are only linked into the game while it runs.
 - Multiple profiles per game, enable/disable mods, config editor
 - Launch from Hermit or straight from Steam via launch options (Proton and native Linux games)
 - Profile export/import compatible with r2modman (`.r2z` files and profile codes)
+- A Steam Deck layout driven by the controller, next to the regular desktop one
 
 Built with [Wails v3](https://v3.wails.io) (Go + React/TypeScript). Windows support is planned.
+
+## Screenshots
+
+Hermit has two layouts. The Steam Deck one is built for a controller: games sit in a bar along the top and are
+switched with the shoulder buttons, the d-pad moves the focus and B steps back out.
+
+![A game and its profiles in the Steam Deck layout](docs/screenshots/deck-gamescreen.png)
+
+![Installed mods of a profile](docs/screenshots/deck-managerscreen.png)
+
+![Browsing Thunderstore as cards](docs/screenshots/deck-browsescreen.png)
+
+The desktop layout keeps the games in a sidebar and fits more on screen; the mod browser can be shown as cards or
+as a list in either layout.
+
+![A game and its profiles on the desktop](docs/screenshots/desktop-gamescreen.png)
+
+![Browsing Thunderstore as a list](docs/screenshots/desktop-browsescreen.png)
 
 ## Requirements (Arch Linux)
 
