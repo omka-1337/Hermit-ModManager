@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Application } from "@wailsio/runtime";
 import { Game } from "../api";
 import GameIcon from "../components/GameIcon";
 import { useGamepad } from "../gamepad";
 import { clickFocused, Direction, focusFirst, moveFocus } from "../focus";
-import { useModalOpen } from "../components/ui";
-import { GearIcon, PlusIcon, ShellProps } from "./shell";
+import { Button, useModalOpen } from "../components/ui";
+import { GearIcon, PlusIcon, PowerIcon, ShellProps } from "./shell";
 
 // Entry is a stop in the game bar: a game, or one of the two actions after them.
 type Entry = { kind: "game"; game: Game } | { kind: "add" } | { kind: "settings" };
@@ -94,6 +95,8 @@ export default function ConsoleShell({
     if (entry.kind === "settings") onSettings();
   };
 
+  const [leaving, setLeaving] = useState(false);
+
   // A dialog takes over the buttons while it is open.
   const modalOpen = useModalOpen();
   useGamepad(
@@ -110,8 +113,19 @@ export default function ConsoleShell({
         if (moveFocus("up", main.current)) moved.current = true;
         else backToBar();
       },
-      onAccept: () => (zone === "bar" ? enterPage() : clickFocused(main.current)),
-      onBack: () => (zone === "page" ? backToBar() : onBack()),
+      onAccept: () => {
+        if (leaving) Application.Quit();
+        else if (zone === "page") clickFocused(main.current);
+        else enterPage();
+      },
+      // B is the way back: out of the page to the bar, then out of whatever the
+      // bar is showing, and finally out of Hermit.
+      onBack: () => {
+        if (leaving) setLeaving(false);
+        else if (zone === "page") backToBar();
+        else if (canGoBack) onBack();
+        else setLeaving(true);
+      },
     },
     !modalOpen,
   );
@@ -123,6 +137,7 @@ export default function ConsoleShell({
         {children}
       </main>
       <HintBar zone={zone} canGoBack={canGoBack} />
+      {leaving && <QuitPrompt onCancel={() => setLeaving(false)} onQuit={() => Application.Quit()} />}
     </div>
   );
 }
@@ -222,7 +237,7 @@ function ShoulderHint({ label }: { label: string }) {
 function HintBar({ zone, canGoBack }: { zone: Zone; canGoBack: boolean }) {
   const hints =
     zone === "bar"
-      ? ["LB / RB — switch", "A / ↓ — open", canGoBack ? "B — back" : null]
+      ? ["LB / RB — switch", "A / ↓ — open", canGoBack ? "B — back" : "B — quit"]
       : ["D-pad — move", "A — select", "B — back to games", "LB / RB — switch"];
   return (
     <footer className="flex gap-4 border-t border-zinc-800 bg-zinc-900 px-4 py-1.5 text-xs text-zinc-500">
@@ -230,5 +245,34 @@ function HintBar({ zone, canGoBack }: { zone: Zone; canGoBack: boolean }) {
         <span key={hint}>{hint}</span>
       ))}
     </footer>
+  );
+}
+
+// QuitPrompt is the last step of pressing B: it is drawn here rather than in a
+// Modal so the controller keeps working while it is up (A quits, B cancels).
+function QuitPrompt({ onCancel, onQuit }: { onCancel: () => void; onQuit: () => void }) {
+  return (
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/70 p-6" onClick={onCancel}>
+      <div
+        className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="self-center text-zinc-500">
+          <PowerIcon />
+        </span>
+        <div className="flex flex-col gap-1">
+          <span className="text-lg font-semibold">Quit Hermit?</span>
+          <span className="text-sm text-zinc-400">Games keep their mods; nothing is removed.</span>
+        </div>
+        <div className="flex justify-center gap-2">
+          <Button variant="primary" onClick={onQuit}>
+            Quit (A)
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel (B)
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

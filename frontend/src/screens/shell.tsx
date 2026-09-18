@@ -44,3 +44,19 @@ export function GearIcon() {
     </svg>
   );
 }
+
+export function PowerIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <path d="M12 4v8" />
+      <path d="M7.5 7a7 7 0 1 0 9 0" />
+    </svg>
+  );
+}

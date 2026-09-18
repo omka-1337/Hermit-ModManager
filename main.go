@@ -131,7 +131,7 @@ func main() {
 		// The Steam Deck screen is 1280x800; fill it and allow smaller windows.
 		windowOptions.Width, windowOptions.Height = 1280, 800
 		windowOptions.MinWidth, windowOptions.MinHeight = 800, 500
-		windowOptions.StartState = application.WindowStateMaximised
+		windowOptions.StartState = application.WindowStateFullscreen
 	}
 	window := wailsApp.Window.NewWithOptions(windowOptions)
 
