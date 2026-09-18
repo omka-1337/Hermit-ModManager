@@ -38,6 +38,7 @@ executable (`chmod +x Hermit-*.AppImage`) and run it. It needs FUSE; on SteamOS 
 there. To use it from Game Mode on a Steam Deck, add the AppImage to Steam as a non-Steam game.
 
 An AUR package, and Windows and macOS builds, are planned before 1.0; for now the AppImage is the only build.
+What changed in each release is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements (Arch Linux)
 
